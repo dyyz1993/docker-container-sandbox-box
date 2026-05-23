@@ -31,6 +31,8 @@ if [ -f "$SANDBOX_DB" ]; then
         sb_dir="${SANDBOX_DATA_DIR}/${name}"
         [ ! -d "$sb_dir" ] && continue
 
+        escaped_name=$(db_escape "$name")
+
         log "recovering sandbox '${name}'"
 
         mkdir -p "${sb_dir}/home/workspace" 2>/dev/null || true
@@ -59,7 +61,7 @@ if [ -f "$SANDBOX_DB" ]; then
             bash /root/scripts/sandbox-nginx.sh add "$name" "$ns_ip" "$port" 2>/dev/null || true
         fi
 
-        db_query "UPDATE sandboxes SET pid=${sb_pid}, status='running' WHERE name='${name}';" 2>/dev/null || true
+        db_query "UPDATE sandboxes SET pid=${sb_pid}, status='running' WHERE name='${escaped_name}';" 2>/dev/null || true
 
         if [ -d /sys/fs/cgroup ] && [ -w /sys/fs/cgroup ]; then
             mkdir -p "/sys/fs/cgroup/sandbox-${name}" 2>/dev/null || true

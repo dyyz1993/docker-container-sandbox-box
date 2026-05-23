@@ -23,6 +23,8 @@ if [ -z "$name" ]; then
     exit 1
 fi
 
+validate_name "$name"
+
 if sandbox_is_running "$name"; then
     echo "Error: sandbox '${name}' is already running"
     exit 1
@@ -62,8 +64,12 @@ ns_ip=$(bash "${SCRIPT_DIR}/sandbox-network.sh" create "$network_id" "$sb_pid")
 
 domain="$(sandbox_domain "$name")"
 
+escaped_name=$(db_escape "$name")
+escaped_domain=$(db_escape "$domain")
+escaped_mount=$(db_escape "$mount_path")
+
 db_query "INSERT OR REPLACE INTO sandboxes (name, pid, status, network_id, domain, port, mount_path)
-    VALUES ('${name}', ${sb_pid}, 'running', ${network_id}, '${domain}', ${port}, '${mount_path}');"
+    VALUES ('${escaped_name}', ${sb_pid}, 'running', ${network_id}, '${escaped_domain}', ${port}, '${escaped_mount}');"
 
 bash "${SCRIPT_DIR}/sandbox-nginx.sh" add "$name" "$ns_ip" "$port"
 

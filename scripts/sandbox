@@ -31,8 +31,11 @@ cmd_info() {
         echo "Usage: sandbox info <name>"
         exit 1
     fi
+    validate_name "$name"
     db_init
-    db_query "SELECT * FROM sandboxes WHERE name='${name}';" | tr '|' '\n'
+    local escaped
+    escaped=$(db_escape "$name")
+    db_query "SELECT * FROM sandboxes WHERE name='${escaped}';" | tr '|' '\n'
 }
 
 cmd_shell() {
@@ -41,9 +44,12 @@ cmd_shell() {
         echo "Usage: sandbox shell <name>"
         exit 1
     fi
+    validate_name "$name"
     ensure_running "$name"
+    local escaped
+    escaped=$(db_escape "$name")
     local pid
-    pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${name}';")
+    pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${escaped}';")
     local sb_dir
     sb_dir="$(sandbox_dir "$name")"
     exec nsenter -t "$pid" -m -n -p -u -- \
@@ -57,6 +63,7 @@ cmd_resume() {
         echo "Usage: sandbox resume <name> [--mount /path]"
         exit 1
     fi
+    validate_name "$name"
     if ! sandbox_exists "$name"; then
         echo "Error: sandbox '${name}' data not found"
         exit 1
@@ -65,8 +72,9 @@ cmd_resume() {
         echo "Sandbox '${name}' is already running"
         exit 0
     fi
-    local mount_path
-    mount_path=$(db_query "SELECT mount_path FROM sandboxes WHERE name='${name}';" 2>/dev/null)
+    local escaped mount_path
+    escaped=$(db_escape "$name")
+    mount_path=$(db_query "SELECT mount_path FROM sandboxes WHERE name='${escaped}';" 2>/dev/null)
     if [ $# -gt 0 ]; then
         bash "${SCRIPT_DIR}/sandbox-create.sh" "$name" "$@"
     else
@@ -82,6 +90,7 @@ cmd_daemon() {
         echo "Usage: sandbox daemon <name> <command>"
         exit 1
     fi
+    validate_name "$name"
     bash "${SCRIPT_DIR}/sandbox-exec.sh" "$name" "${cmd} &"
 }
 
@@ -104,15 +113,18 @@ cmd_health() {
         echo "Usage: sandbox health <name>"
         exit 1
     fi
+    validate_name "$name"
     db_init
 
     local ok=true
     local pid network_id port domain
+    local escaped
+    escaped=$(db_escape "$name")
 
-    pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${name}';" 2>/dev/null)
-    network_id=$(db_query "SELECT network_id FROM sandboxes WHERE name='${name}';" 2>/dev/null)
-    port=$(db_query "SELECT port FROM sandboxes WHERE name='${name}';" 2>/dev/null)
-    domain=$(db_query "SELECT domain FROM sandboxes WHERE name='${name}';" 2>/dev/null)
+    pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${escaped}';" 2>/dev/null)
+    network_id=$(db_query "SELECT network_id FROM sandboxes WHERE name='${escaped}';" 2>/dev/null)
+    port=$(db_query "SELECT port FROM sandboxes WHERE name='${escaped}';" 2>/dev/null)
+    domain=$(db_query "SELECT domain FROM sandboxes WHERE name='${escaped}';" 2>/dev/null)
 
     echo "Health check for '${name}':"
 

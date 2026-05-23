@@ -13,8 +13,20 @@ log() {
     echo "$msg" >> "$SANDBOX_LOG_FILE" 2>/dev/null || true
 }
 
+db_escape() {
+    printf '%s' "$1" | sed "s/'/''/g"
+}
+
 db_query() {
     sqlite3 "$SANDBOX_DB" "$@"
+}
+
+validate_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]{1,64}$ ]]; then
+        echo "Error: invalid name '${name}'. Only [a-zA-Z0-9_-], max 64 chars" >&2
+        exit 1
+    fi
 }
 
 db_init() {
@@ -59,8 +71,10 @@ sandbox_exists() {
 
 sandbox_is_running() {
     local name=$1
+    local escaped
+    escaped=$(db_escape "$name")
     local pid
-    pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${name}';" 2>/dev/null)
+    pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${escaped}';" 2>/dev/null)
     [ -n "$pid" ] && [ "$pid" != "0" ] && kill -0 "$pid" 2>/dev/null
 }
 

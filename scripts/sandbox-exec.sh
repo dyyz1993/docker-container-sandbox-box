@@ -15,9 +15,11 @@ if [ -z "$name" ] || [ -z "$cmd" ]; then
     exit 1
 fi
 
+validate_name "$name"
 ensure_running "$name"
 
-pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${name}';")
+escaped_name=$(db_escape "$name")
+pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${escaped_name}';")
 sb_dir="$(sandbox_dir "$name")"
 
 if [[ "$cmd" == *"&" ]]; then

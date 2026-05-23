@@ -1,7 +1,7 @@
 FROM node:22-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl wget git nginx supervisor openssh-server \
+    ca-certificates curl wget git nginx supervisor openssh-server \
     iproute2 bridge-utils iputils-ping python3 sqlite3 \
     procps psmisc util-linux iptables xz-utils \
     && rm -rf /var/lib/apt/lists/*

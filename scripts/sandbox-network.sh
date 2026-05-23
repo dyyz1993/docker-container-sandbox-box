@@ -25,6 +25,8 @@ cmd_create() {
     nsenter -t "${ns_pid}" -n ip address add "${ns_ip}" dev eth0
     nsenter -t "${ns_pid}" -n ip route add default via "${NET_PREFIX}.${id}.1"
 
+    nsenter -t "${ns_pid}" -n -- sh -c "echo 'nameserver 8.8.8.8' > /etc/resolv.conf && echo 'nameserver 114.114.114.114' >> /etc/resolv.conf"
+
     iptables -t nat -A POSTROUTING -s "${NET_PREFIX}.${id}.0/24" -j MASQUERADE 2>/dev/null || true
     sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
 
@@ -46,6 +48,8 @@ cmd_list() {
     echo "Active sandbox networks:"
     ip link show type veth 2>/dev/null | grep -oP 'veth-s\d+' || echo "  (none)"
 }
+
+[[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
 
 case "${1:-}" in
     create)  cmd_create "$2" "$3" ;;

@@ -1,0 +1,25 @@
+services:
+  sandbox-box:
+    build: .
+    container_name: sandbox-box
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "9090:80"
+      - "2201:22"
+    env_file:
+      - .env
+    volumes:
+      - ./scripts:/root/scripts
+      - ./data:/root/data
+      - ./logs:/var/log
+      - ./config/nginx:/etc/nginx/custom
+    networks:
+      - sandbox_net
+
+networks:
+  sandbox_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.98.0.0/24

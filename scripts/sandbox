@@ -1,0 +1,116 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/sandbox-lib.sh"
+
+cmd_create() {
+    bash "${SCRIPT_DIR}/sandbox-create.sh" "$@"
+}
+
+cmd_destroy() {
+    local name="${2:-}"
+    bash "${SCRIPT_DIR}/sandbox-destroy.sh" "$name"
+}
+
+cmd_list() {
+    db_init
+    echo "$(printf '%-20s %-10s %-8s %-40s %s' 'NAME' 'STATUS' 'PORT' 'DOMAIN' 'PID')"
+    echo "-----------------------------------------------------------------------------------"
+    db_query "SELECT name, status, port, domain, pid FROM sandboxes ORDER BY id;" | while IFS='|' read -r name status port domain pid; do
+        if [ "$status" = "running" ] && [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+            status="dead"
+        fi
+        printf '%-20s %-10s %-8s %-40s %s\n' "$name" "$status" "$port" "$domain" "${pid:-0}"
+    done
+}
+
+cmd_info() {
+    local name="${1:-}"
+    if [ -z "$name" ]; then
+        echo "Usage: sandbox info <name>"
+        exit 1
+    fi
+    db_init
+    db_query "SELECT * FROM sandboxes WHERE name='${name}';" | tr '|' '\n'
+}
+
+cmd_shell() {
+    local name="${1:-}"
+    if [ -z "$name" ]; then
+        echo "Usage: sandbox shell <name>"
+        exit 1
+    fi
+    ensure_running "$name"
+    local pid
+    pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${name}';")
+    local sb_dir
+    sb_dir="$(sandbox_dir "$name")"
+    exec nsenter -t "$pid" -m -n -p -u -- \
+        /bin/bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; export NPM_CONFIG_PREFIX=${sb_dir}/.npm-global; cd /workspace 2>/dev/null || cd /root; exec /bin/bash"
+}
+
+cmd_resume() {
+    local name="${1:-}"
+    shift || true
+    if [ -z "$name" ]; then
+        echo "Usage: sandbox resume <name> [--mount /path]"
+        exit 1
+    fi
+    if ! sandbox_exists "$name"; then
+        echo "Error: sandbox '${name}' data not found"
+        exit 1
+    fi
+    if sandbox_is_running "$name"; then
+        echo "Sandbox '${name}' is already running"
+        exit 0
+    fi
+    local mount_path
+    mount_path=$(db_query "SELECT mount_path FROM sandboxes WHERE name='${name}';" 2>/dev/null)
+    if [ $# -gt 0 ]; then
+        bash "${SCRIPT_DIR}/sandbox-create.sh" "$name" "$@"
+    else
+        bash "${SCRIPT_DIR}/sandbox-create.sh" "$name" ${mount_path:+--mount "$mount_path"}
+    fi
+}
+
+cmd_url() {
+    local name="${1:-}"
+    if [ -z "$name" ]; then
+        echo "Usage: sandbox url <name>"
+        exit 1
+    fi
+    echo "http://$(sandbox_domain "$name")"
+}
+
+cmd_exec() {
+    bash "${SCRIPT_DIR}/sandbox-exec.sh" "$@"
+}
+
+case "${1:-}" in
+    create)  shift; cmd_create "$@" ;;
+    destroy) shift; cmd_destroy "$@" ;;
+    list)    cmd_list ;;
+    info)    shift; cmd_info "$@" ;;
+    shell)   shift; cmd_shell "$@" ;;
+    resume)  shift; cmd_resume "$@" ;;
+    url)     shift; cmd_url "$@" ;;
+    help|--help|-h)
+        echo "Usage:"
+        echo "  sandbox create <name> [--mount /path] [--port 3100]"
+        echo "  sandbox <name> <command...>       Execute command in sandbox"
+        echo "  sandbox shell <name>              Interactive shell"
+        echo "  sandbox list                      List all sandboxes"
+        echo "  sandbox info <name>               Show sandbox details"
+        echo "  sandbox url <name>                Show sandbox URL"
+        echo "  sandbox resume <name>             Resume stopped sandbox"
+        echo "  sandbox destroy <name>            Destroy sandbox (keeps data)"
+        ;;
+    "")
+        echo "Usage: sandbox <name> <command> or sandbox help"
+        exit 1
+        ;;
+    *)
+        cmd_exec "$@"
+        ;;
+esac

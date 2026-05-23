@@ -87,6 +87,8 @@ if [ -f "$start_sh" ]; then
         [ -z "$svc_cmd" ] && continue
         nsenter -t "$sb_pid" -m -n -p -u -- \
             setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace 2>/dev/null || cd /root; ${svc_cmd}" < /dev/null &>/dev/null &
+        svc_pid=$!
+        echo "$svc_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
         sleep 0.1
     done < "$start_sh"
 fi

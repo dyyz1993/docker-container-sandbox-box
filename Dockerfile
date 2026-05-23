@@ -6,9 +6,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps psmisc util-linux iptables xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-RUN ARCH=$(dpkg --print-architecture) && \
-    curl -L -o /usr/local/bin/ttyd "https://github.com/tsl0922/ttyd/releases/download/v1.7.7/ttyd.${ARCH}" && \
-    chmod +x /usr/local/bin/ttyd
+RUN ARCH=$(case $(dpkg --print-architecture) in amd64) echo "x86_64";; arm64) echo "aarch64";; *) echo $(dpkg --print-architecture);; esac) && \
+    curl -L -o /usr/local/bin/ttyd "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.${ARCH}" && \
+    chmod +x /usr/local/bin/ttyd && \
+    ttyd --version
 
 RUN mkdir -p /run/sshd /var/log/supervisor /root/data/sandboxes /root/scripts
 

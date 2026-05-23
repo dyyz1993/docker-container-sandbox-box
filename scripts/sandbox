@@ -9,7 +9,7 @@ cmd_create() {
 }
 
 cmd_destroy() {
-    local name="${2:-}"
+    local name="${1:-}"
     bash "${SCRIPT_DIR}/sandbox-destroy.sh" "$name"
 }
 
@@ -74,6 +74,17 @@ cmd_resume() {
     fi
 }
 
+cmd_daemon() {
+    local name="${1:-}"
+    shift || true
+    local cmd="$*"
+    if [ -z "$name" ] || [ -z "$cmd" ]; then
+        echo "Usage: sandbox daemon <name> <command>"
+        exit 1
+    fi
+    bash "${SCRIPT_DIR}/sandbox-exec.sh" "$name" "${cmd} &"
+}
+
 cmd_url() {
     local name="${1:-}"
     if [ -z "$name" ]; then
@@ -87,6 +98,60 @@ cmd_exec() {
     bash "${SCRIPT_DIR}/sandbox-exec.sh" "$@"
 }
 
+cmd_health() {
+    local name="${1:-}"
+    if [ -z "$name" ]; then
+        echo "Usage: sandbox health <name>"
+        exit 1
+    fi
+    db_init
+
+    local ok=true
+    local pid network_id port domain
+
+    pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${name}';" 2>/dev/null)
+    network_id=$(db_query "SELECT network_id FROM sandboxes WHERE name='${name}';" 2>/dev/null)
+    port=$(db_query "SELECT port FROM sandboxes WHERE name='${name}';" 2>/dev/null)
+    domain=$(db_query "SELECT domain FROM sandboxes WHERE name='${name}';" 2>/dev/null)
+
+    echo "Health check for '${name}':"
+
+    if [ -n "$pid" ] && [ "$pid" != "0" ] && kill -0 "$pid" 2>/dev/null; then
+        echo "  [OK] Process alive (pid=${pid})"
+    else
+        echo "  [FAIL] Process not alive"
+        ok=false
+    fi
+
+    local veth="veth-s${network_id}"
+    if ip link show "$veth" &>/dev/null; then
+        echo "  [OK] Network interface exists (${veth})"
+    else
+        echo "  [FAIL] Network interface missing (${veth})"
+        ok=false
+    fi
+
+    if [ -f "/etc/nginx/conf.d/sandbox-${name}.conf" ]; then
+        echo "  [OK] Nginx config exists"
+    else
+        echo "  [FAIL] Nginx config missing"
+        ok=false
+    fi
+
+    if [ "$ok" = true ]; then
+        local ns_ip="${NET_PREFIX:-10.10}.${network_id}.2"
+        if nsenter -t "$pid" -n -- curl -s -o /dev/null -w '' --max-time 2 "http://127.0.0.1:${port}" 2>/dev/null; then
+            echo "  [OK] Port ${port} reachable inside namespace"
+        else
+            echo "  [WARN] Port ${port} not responding (service may not be started)"
+        fi
+        echo "  Overall: HEALTHY"
+    else
+        echo "  Overall: UNHEALTHY"
+        exit 1
+    fi
+}
+
 case "${1:-}" in
     create)  shift; cmd_create "$@" ;;
     destroy) shift; cmd_destroy "$@" ;;
@@ -94,15 +159,19 @@ case "${1:-}" in
     info)    shift; cmd_info "$@" ;;
     shell)   shift; cmd_shell "$@" ;;
     resume)  shift; cmd_resume "$@" ;;
+    daemon)  shift; cmd_daemon "$@" ;;
     url)     shift; cmd_url "$@" ;;
+    health)  shift; cmd_health "$@" ;;
     help|--help|-h)
         echo "Usage:"
         echo "  sandbox create <name> [--mount /path] [--port 3100]"
         echo "  sandbox <name> <command...>       Execute command in sandbox"
         echo "  sandbox shell <name>              Interactive shell"
+        echo "  sandbox daemon <name> <command>   Run long-running service"
         echo "  sandbox list                      List all sandboxes"
         echo "  sandbox info <name>               Show sandbox details"
         echo "  sandbox url <name>                Show sandbox URL"
+        echo "  sandbox health <name>             Health check"
         echo "  sandbox resume <name>             Resume stopped sandbox"
         echo "  sandbox destroy <name>            Destroy sandbox (keeps data)"
         ;;

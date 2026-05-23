@@ -5,9 +5,12 @@ SANDBOX_DB="${SANDBOX_DB:-/root/data/sandbox.db}"
 SANDBOX_DOMAIN="${DOMAIN:-19930810.xyz}"
 SANDBOX_SUFFIX="${SANDBOX_DOMAIN_SUFFIX:-sandbox}"
 SANDBOX_DEFAULT_PORT="${SANDBOX_DEFAULT_PORT:-3100}"
+SANDBOX_LOG_FILE="${SANDBOX_LOG_FILE:-/var/log/sandbox-box.log}"
 
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >&2
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    echo "$msg" >&2
+    echo "$msg" >> "$SANDBOX_LOG_FILE" 2>/dev/null || true
 }
 
 db_query() {
@@ -26,11 +29,18 @@ CREATE TABLE IF NOT EXISTS sandboxes (
     domain TEXT,
     port INTEGER DEFAULT 3100,
     mount_path TEXT,
+    services TEXT DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 SQL
         log "database initialized"
+    else
+        local has_services
+        has_services=$(sqlite3 "$SANDBOX_DB" "PRAGMA table_info(sandboxes);" 2>/dev/null | grep -c 'services' || true)
+        if [ "$has_services" -eq 0 ]; then
+            sqlite3 "$SANDBOX_DB" "ALTER TABLE sandboxes ADD COLUMN services TEXT DEFAULT '';" 2>/dev/null || true
+        fi
     fi
 }
 

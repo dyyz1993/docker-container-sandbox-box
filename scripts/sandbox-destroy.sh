@@ -27,10 +27,14 @@ if [ -n "$pid" ] && [ "$pid" != "0" ]; then
 fi
 
 if [ -n "$network_id" ]; then
-    sandbox-network.sh destroy "$network_id" 2>/dev/null || true
+    bash "${SCRIPT_DIR}/sandbox-network.sh" destroy "$network_id" 2>/dev/null || true
 fi
 
 bash "${SCRIPT_DIR}/sandbox-nginx.sh" remove "$name" 2>/dev/null || true
+
+if [ -d "/sys/fs/cgroup/sandbox-${name}" ]; then
+    rmdir "/sys/fs/cgroup/sandbox-${name}" 2>/dev/null || true
+fi
 
 db_query "UPDATE sandboxes SET status='stopped', pid=0 WHERE name='${name}';"
 

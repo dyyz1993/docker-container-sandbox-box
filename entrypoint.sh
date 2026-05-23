@@ -8,7 +8,7 @@ if [ -n "$SSH_PUBLIC_KEY" ]; then
 fi
 ssh-keygen -A 2>/dev/null
 
-mkdir -p /root/data/sandboxes /var/log/supervisor /var/run
+mkdir -p /root/data/sandboxes /var/log/supervisor /var/log/nginx /var/run
 
 echo 1 > /proc/sys/net/ipv4/ip_forward
 

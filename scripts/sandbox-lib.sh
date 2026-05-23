@@ -39,7 +39,7 @@ sandbox_dir() {
 }
 
 sandbox_domain() {
-    echo "${1}-${SANDBOX_SUFFIX}.${SANDBOX_DOMAIN}"
+    echo "${1}.${SANDBOX_SUFFIX}.${SANDBOX_DOMAIN}"
 }
 
 sandbox_exists() {

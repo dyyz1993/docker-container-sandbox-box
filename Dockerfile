@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN ARCH=$(dpkg --print-architecture) && \
-    curl -L "https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.${ARCH}" -o /usr/local/bin/ttyd && \
+    curl -L -o /usr/local/bin/ttyd "https://github.com/tsl0922/ttyd/releases/download/v1.7.7/ttyd.${ARCH}" && \
     chmod +x /usr/local/bin/ttyd
 
 RUN mkdir -p /run/sshd /var/log/supervisor /root/data/sandboxes /root/scripts

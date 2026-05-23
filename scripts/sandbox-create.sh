@@ -73,9 +73,11 @@ db_query "INSERT OR REPLACE INTO sandboxes (name, pid, status, network_id, domai
 
 bash "${SCRIPT_DIR}/sandbox-nginx.sh" add "$name" "$ns_ip" "$port"
 
-if [ -d /sys/fs/cgroup ] && [ -w /sys/fs/cgroup ]; then
-    mkdir -p "/sys/fs/cgroup/sandbox-${name}" 2>/dev/null || true
-    echo "max 512M" > "/sys/fs/cgroup/sandbox-${name}/memory.max" 2>/dev/null && echo "$sb_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || log "cgroup limits not available for '${name}'"
+if [ -d /sys/fs/cgroup ]; then
+    mkdir -p "/sys/fs/cgroup/sandbox-${name}" 2>/dev/null \
+    && echo 536870912 > "/sys/fs/cgroup/sandbox-${name}/memory.max" 2>/dev/null \
+    && echo "$sb_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null \
+    || log "cgroup limits not available for '${name}'"
 fi
 
 start_sh="${sb_dir}/start.sh"

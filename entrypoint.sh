@@ -63,9 +63,10 @@ if [ -f "$SANDBOX_DB" ]; then
 
         db_query "UPDATE sandboxes SET pid=${sb_pid}, status='running' WHERE name='${escaped_name}';" 2>/dev/null || true
 
-        if [ -d /sys/fs/cgroup ] && [ -w /sys/fs/cgroup ]; then
+        if [ -d /sys/fs/cgroup ]; then
             mkdir -p "/sys/fs/cgroup/sandbox-${name}" 2>/dev/null || true
-            echo "max 512M" > "/sys/fs/cgroup/sandbox-${name}/memory.max" 2>/dev/null && echo "$sb_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
+            echo 536870912 > "/sys/fs/cgroup/sandbox-${name}/memory.max" 2>/dev/null || true
+            echo "$sb_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
         fi
 
         start_sh="${sb_dir}/start.sh"

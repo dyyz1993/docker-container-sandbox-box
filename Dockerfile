@@ -1,13 +1,9 @@
-FROM debian:12
+FROM node:22-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl wget git nginx supervisor openssh-server \
     iproute2 bridge-utils iputils-ping python3 sqlite3 \
     procps psmisc util-linux \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /run/sshd /var/log/supervisor /root/data/sandboxes /root/scripts

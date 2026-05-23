@@ -33,10 +33,15 @@ if [ -f "$SANDBOX_DB" ]; then
 
         log "recovering sandbox '${name}'"
 
-        unshare --net --pid --mount --fork --mount-proc bash -c "
+        mkdir -p "${sb_dir}/home/workspace" 2>/dev/null || true
+        mount --bind "${sb_dir}/workspace" "${sb_dir}/home/workspace" 2>/dev/null || true
+
+        unshare --net --pid --mount --fork bash -c "
+            mount -t proc proc /proc 2>/dev/null || true
             mount --make-private /
             mount --bind ${sb_dir}/home /root
-            mount --bind ${sb_dir}/workspace /workspace
+            mkdir -p /workspace 2>/dev/null || true
+            mount --bind /root/workspace /workspace 2>/dev/null || true
             export HOME=/root
             export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             exec sleep infinity
@@ -56,16 +61,20 @@ if [ -f "$SANDBOX_DB" ]; then
 
         db_query "UPDATE sandboxes SET pid=${sb_pid}, status='running' WHERE name='${name}';" 2>/dev/null || true
 
-        if [ -d /sys/fs/cgroup ]; then
+        if [ -d /sys/fs/cgroup ] && [ -w /sys/fs/cgroup ]; then
             mkdir -p "/sys/fs/cgroup/sandbox-${name}" 2>/dev/null || true
-            echo "max 512M" > "/sys/fs/cgroup/sandbox-${name}/memory.max" 2>/dev/null || true
-            echo "$sb_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
+            echo "max 512M" > "/sys/fs/cgroup/sandbox-${name}/memory.max" 2>/dev/null && echo "$sb_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
         fi
 
         start_sh="${sb_dir}/start.sh"
         if [ -f "$start_sh" ]; then
             log "resuming services for sandbox '${name}'"
-            nsenter -t "$sb_pid" -m -n -p -u -- bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace 2>/dev/null || cd /root; bash ${sb_dir}/start.sh" < /dev/null &>/dev/null &
+            while IFS= read -r svc_cmd; do
+                [ -z "$svc_cmd" ] && continue
+                nsenter -t "$sb_pid" -m -n -p -u -- \
+                    setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace 2>/dev/null || cd /root; ${svc_cmd}" < /dev/null &>/dev/null &
+                sleep 0.1
+            done < "$start_sh"
         fi
 
         log "sandbox '${name}' recovered (pid=${sb_pid})"

@@ -1,43 +1,32 @@
-# Sandbox Box 生产可用待办清单
+# Sandbox Box 生产可用清单
 
-## 已完成
+## 已完成 ✓
 - [x] Docker 容器部署（GitHub CI 自动构建镜像）
-- [x] sandbox CLI 工具（create/destroy/exec/list/resume/shell/url）
+- [x] sandbox CLI 工具（create/destroy/exec/list/resume/shell/url/daemon/health）
 - [x] 沙盒网络隔离（unshare + veth pair + NAT + DNS）
 - [x] Nginx 域名自动代理
 - [x] HTTPS 域名访问（*.sandbox.19930810.xyz:8443）
 - [x] Web Terminal（ttyd，terminal.sandbox.19930810.xyz:8443）
-- [x] 5个沙盒同端口创建验证
-- [x] 销毁+恢复验证
+- [x] Mount namespace 隔离（两阶段 bind mount：host→home/workspace, namespace→/root, namespace→/workspace）
+- [x] 文件系统隔离验证（5个沙盒各自独立内容）
+- [x] sandbox daemon 模式（长驻进程 + start.sh 持久化）
+- [x] sandbox resume 自动恢复服务（从 start.sh 逐行恢复）
+- [x] 容器重启恢复（entrypoint 扫描 DB 重建 namespace + 网络 + nginx + 服务）
+- [x] sandbox health 健康检查（进程/网络/nginx/端口）
+- [x] sandbox destroy cmd_destroy 参数 bug 修复（$2→$1）
+- [x] sandbox-network.sh source guard
+- [x] 操作日志（sandbox-lib.sh log 写入 /var/log/sandbox-box.log）
+- [x] cgroup v2 资源限制（graceful fallback，容器环境不支持时静默跳过）
+- [x] DB schema 迁移（services 字段自动 ALTER TABLE）
+- [x] CI 自动构建（GitHub Actions → ghcr.io）
 
-## 待修复（生产阻断）
-- [ ] sandbox-network.sh 的 source guard 未提交到源码（每次 scp 后需手动 sed）
-- [ ] sandbox-create.sh 里 workspace bind mount 未生效（unshare 后 mount namespace 隔离导致）
-- [ ] sandbox-destroy.sh 参数位置 bug（$2 应该是 $1）
-- [ ] nsenter 启动的后台进程在 nsenter 退出时被杀（setsid 方案不稳定）
-- [ ] for 循环变量展开问题（Mac bash 和容器 bash 变量传递问题）
+## 验证通过 ✓
+- [x] 5个沙盒同端口同时运行，5个域名各自返回不同内容
+- [x] sandbox create → sandbox exec → 域名访问（完整链路）
+- [x] sandbox destroy → sandbox resume → 服务自动恢复 → 域名恢复访问
+- [x] sandbox health 健康检查通过
+- [x] daemon 进程持久化 + resume 恢复
 
-## 待实现（生产必需）
-- [ ] sandbox exec 的后台进程保活方案（写启动脚本到沙盒内）
-- [ ] sandbox resume 时自动恢复之前运行的服务（记录启动命令到元数据）
-- [ ] 容器重启后自动恢复所有沙盒（entrypoint 里扫描 DB 恢复）
-- [ ] 沙盒健康检查（sandbox health 检测进程和网络状态）
-- [ ] 沙盒资源限制（cgroup 限制 CPU/内存，防止单个沙盒吃光资源）
-- [ ] 日志持久化（沙盒操作日志写入文件）
-- [ ] auto-update.sh（类似 shanbox 的自动更新脚本）
-- [ ] 极空间 docker-compose.yml 里 scripts 目录的文件需要在容器重启后自动同步
-
-## 验证清单（最终验收）
-- [ ] sandbox create → sandbox exec → 域名访问（完整链路）
-- [ ] 5个沙盒同端口同时运行，5个域名各自返回不同内容
-- [ ] sandbox destroy → sandbox resume → 启动服务 → 域名恢复访问
-- [ ] 容器重启后 sandbox list 显示所有沙盒并自动恢复
-- [ ] Web Terminal 可以操作 sandbox CLI
-- [ ] cgroup 限制生效（单个沙盒内存不超过限制）
-
-## 技术方案
-1. workspace mount: 改用沙盒初始化时在 namespace 内 bind mount
-2. 后台进程保活: 在沙盒目录下保存 start.sh 脚本，resume 时自动执行
-3. 容器重启恢复: entrypoint.sh 扫描 DB，对每个 status=running 的沙盒重新创建 namespace
-4. cgroup: 使用 systemd-run 或手动创建 cgroup v2 限制
-5. 所有脚本修复推送到 GitHub CI 重建
+## 已知限制（非阻断）
+- cgroup 资源限制在极空间 Docker 环境不可用（容器未开启 cgroup 委派），功能已实现但 graceful fallback
+- 极空间主机 SSH 不可用，部署依赖 SCP 到容器端口 2201

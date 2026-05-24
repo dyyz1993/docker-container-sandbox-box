@@ -14,7 +14,9 @@ touch /var/log/sandbox-box.log 2>/dev/null || true
 echo 1 > /proc/sys/net/ipv4/ip_forward
 
 chmod +x /root/scripts/sandbox* 2>/dev/null || true
-ln -sf /root/scripts/sandbox /usr/local/bin/sandbox 2>/dev/null || true
+for f in /root/scripts/sandbox*; do
+    ln -sf "$f" "/usr/local/bin/$(basename "$f")" 2>/dev/null || true
+done
 
 SANDBOX_DB="${SANDBOX_DB:-/root/data/sandbox.db}"
 

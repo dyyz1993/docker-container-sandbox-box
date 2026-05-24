@@ -63,8 +63,7 @@ jobs:
 
       - name: Health check
         run: |
-          IMAGE_TAG="${{ steps.meta.outputs.tags }}" | head -1
-          TAG=$(echo "$IMAGE_TAG" | head -1)
+          TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
           echo "Testing image: ${TAG}"
           docker pull "${TAG}"
           docker run -d --name health-test --privileged \

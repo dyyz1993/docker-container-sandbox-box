@@ -36,5 +36,5 @@ if [[ "$cmd" == *"&" ]]; then
     echo "Daemon started in sandbox '${name}'"
 else
     exec nsenter -t "$pid" -m -n -p -u -- \
-        /bin/bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; export NPM_CONFIG_PREFIX=${sb_dir}/.npm-global; cd /workspace 2>/dev/null || cd /root; exec $cmd"
+        env CMD="$cmd" /bin/bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; export NPM_CONFIG_PREFIX=${sb_dir}/.npm-global; cd /workspace 2>/dev/null || cd /root; eval \"\$CMD\""
 fi

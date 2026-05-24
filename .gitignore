@@ -2,3 +2,5 @@ data/
 logs/
 .env
 *.log
+node_modules/
+.pi/sandbox-box.json

@@ -24,9 +24,37 @@ fi
 
 validate_name "$name"
 
+# Clone repo command (used in both new and existing sandbox paths)
+clone_cmd="git clone ${branch:+-b ${branch}} '${repo_url}' /workspace"
+if [ -n "$branch" ]; then
+    clone_cmd="git clone -b ${branch} '${repo_url}' /workspace"
+fi
+
 if sandbox_is_running "$name"; then
-    echo "Error: sandbox '${name}' is already running"
-    exit 1
+    echo "Sandbox '${name}' is already running, executing clone in existing sandbox..."
+    escaped_name=$(db_escape "$name")
+    sb_pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${escaped_name}';" 2>/dev/null)
+
+    nsenter -t "$sb_pid" -m -n -p -u -- \
+        bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace 2>/dev/null || true; rm -rf /workspace/.* /workspace/* 2>/dev/null; ${clone_cmd}; cd /workspace && git checkout ${branch:+${branch}} 2>/dev/null || true" < /dev/null 2>&1
+
+    ns_ip=$(db_query "SELECT '' || (((network_id-1)/254)) || '.' || (((network_id-1)%254)+1) || '.2' FROM sandboxes WHERE name='${escaped_name}';" 2>/dev/null || echo "")
+    domain="$(sandbox_domain "$name")"
+
+    echo "Repo cloned into existing sandbox '${name}'"
+    echo "  PID:     ${sb_pid}"
+    echo "  IP:      ${ns_ip}"
+    echo "  Domain:  ${domain}"
+    echo "  Repo:    ${repo_url}"
+    echo "  Branch:  ${branch:-default}"
+    echo ""
+    echo "Usage: sandbox ${name} <command>"
+    exit 0
+fi
+
+if sandbox_exists "$name"; then
+    echo "Sandbox '${name}' exists but is stopped, starting it first..."
+    bash "${SCRIPT_DIR}/sandbox-create.sh" "$name" || true
 fi
 
 # Create sandbox first
@@ -35,12 +63,6 @@ mkdir -p "${sb_dir}/home" "${sb_dir}/workspace" "${sb_dir}/.npm-global"
 mkdir -p "${sb_dir}/home/workspace" "${sb_dir}/home/.npm-global"
 ln -sf /root/workspace "${sb_dir}/home/.workspace_link" 2>/dev/null || true
 mount --bind "${sb_dir}/workspace" "${sb_dir}/home/workspace" 2>/dev/null || true
-
-# Clone repo into workspace
-clone_cmd="git clone ${branch:+-b ${branch}} '${repo_url}' /workspace"
-if [ -n "$branch" ]; then
-    clone_cmd="git clone -b ${branch} '${repo_url}' /workspace"
-fi
 
 unshare --net --pid --mount --uts --fork bash -c "
     mount -t proc proc /proc 2>/dev/null || true
@@ -53,8 +75,6 @@ unshare --net --pid --mount --uts --fork bash -c "
     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     git config --global user.email 'sandbox@sandbox-box.local'
     git config --global user.name 'Sandbox Box'
-    ${clone_cmd}
-    cd /workspace && git checkout ${branch:+${branch}} 2>/dev/null || true
     exec sleep infinity
 " &
 sb_pid=$!
@@ -85,10 +105,23 @@ if [ -d /sys/fs/cgroup ]; then
     || log "cgroup limits not available for '${name}'"
 fi
 
-# Start ttyd for web terminal
 nsenter -t "$sb_pid" -m -n -p -u -- \
     setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; ttyd -p 7681 -W bash" < /dev/null &>/dev/null &
 log "ttyd started in sandbox '${name}' on port 7681"
+
+nsenter -t "$sb_pid" -m -n -p -u -- \
+    setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace && python3 -m http.server ${SANDBOX_DEFAULT_PORT:-3100}" < /dev/null &>/dev/null &
+log "http preview server started in sandbox '${name}' on port ${SANDBOX_DEFAULT_PORT:-3100}"
+
+sleep 0.5
+
+log "Cloning repo into sandbox '${name}'..."
+nsenter -t "$sb_pid" -m -n -p -u -- \
+    bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; rm -rf /workspace/.* /workspace/* 2>/dev/null; ${clone_cmd} && cd /workspace && git checkout ${branch:+${branch}} 2>/dev/null || true" < /dev/null 2>&1
+log "Clone complete for '${name}'"
+
+echo "$name" > /root/data/active-sandbox
+log "active sandbox set to '${name}'"
 
 echo "Sandbox '${name}' created with repo cloned"
 echo "  PID:     ${sb_pid}"

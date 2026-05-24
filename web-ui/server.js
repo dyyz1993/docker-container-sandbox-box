@@ -6,10 +6,47 @@ const { execSync, spawn } = require('child_process');
 const PORT = 3000;
 const WEB_DIR = __dirname;
 const SANDBOX_CMD = '/usr/local/bin/sandbox';
+const SANDBOX_CLONE_CMD = '/usr/local/bin/sandbox-clone.sh';
 const WORKSPACE_ROOT = '/root/data/sandboxes';
 const CGROUP_ROOT = '/sys/fs/cgroup';
 const PROJECTS_FILE = '/root/data/projects.json';
 const USERS_FILE = '/root/data/users.json';
+const DB_PATH = process.env.SANDBOX_DB || '/root/data/sandbox.db';
+
+let db;
+try {
+  const Database = require('better-sqlite3');
+  const dbDir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+  db = new Database(DB_PATH);
+  db.pragma('journal_mode = WAL');
+
+  db.exec(`CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    repo_url TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    email TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  const columns = db.prepare("PRAGMA table_info(sandboxes)").all().map(c => c.name);
+  if (!columns.includes('user_id')) db.exec("ALTER TABLE sandboxes ADD COLUMN user_id TEXT");
+  if (!columns.includes('project_id')) db.exec("ALTER TABLE sandboxes ADD COLUMN project_id TEXT");
+  if (!columns.includes('branch')) db.exec("ALTER TABLE sandboxes ADD COLUMN branch TEXT");
+  if (!columns.includes('purpose')) db.exec("ALTER TABLE sandboxes ADD COLUMN purpose TEXT");
+
+  console.log('SQLite database initialized at', DB_PATH);
+} catch (e) {
+  console.warn('better-sqlite3 not available, falling back to JSON files:', e.message);
+  db = null;
+}
 
 function validatePath(p) {
   if (!p || p.includes('..') || !p.startsWith('/')) {
@@ -127,6 +164,7 @@ async function handleCreateSandbox(req, res) {
       return sendError(res, 400, 'Invalid sandbox name. Use alphanumeric, hyphens, underscores only.');
     }
     const output = execSync(`${SANDBOX_CMD} create ${name} 2>&1`, { encoding: 'utf-8', timeout: 60000 });
+    fs.writeFileSync('/root/data/active-sandbox', name, 'utf-8');
     sendJSON(res, 200, { success: true, message: output.trim() });
   } catch (e) {
     sendError(res, 500, e.message || 'Failed to create sandbox');
@@ -440,8 +478,22 @@ function serveStatic(req, res) {
 // ============================================================
 
 async function handleListProjects(req, res) {
-  const projects = readJsonFile(PROJECTS_FILE);
-  sendJSON(res, 200, projects);
+  try {
+    if (db) {
+      const projects = db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all();
+      const countStmt = db.prepare("SELECT COUNT(*) as cnt FROM sandboxes WHERE project_id = ?");
+      for (const p of projects) {
+        const row = countStmt.get(p.id);
+        p.sandboxCount = row?.cnt || 0;
+      }
+      sendJSON(res, 200, projects);
+    } else {
+      const projects = readJsonFile(PROJECTS_FILE);
+      sendJSON(res, 200, projects);
+    }
+  } catch (e) {
+    sendError(res, 500, e.message || 'Failed to list projects');
+  }
 }
 
 async function handleCreateProject(req, res) {
@@ -455,17 +507,18 @@ async function handleCreateProject(req, res) {
     if (!repoUrl) {
       return sendError(res, 400, 'Repository URL is required');
     }
-    const projects = readJsonFile(PROJECTS_FILE);
     const id = generateId(name);
-    const project = {
-      id,
-      name,
-      repoUrl,
-      createdAt: new Date().toISOString()
-    };
-    projects.push(project);
-    writeJsonFile(PROJECTS_FILE, projects);
-    sendJSON(res, 200, project);
+    if (db) {
+      db.prepare('INSERT INTO projects (id, name, repo_url) VALUES (?, ?, ?)').run(id, name, repoUrl);
+      const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+      sendJSON(res, 200, project);
+    } else {
+      const projects = readJsonFile(PROJECTS_FILE);
+      const project = { id, name, repoUrl, createdAt: new Date().toISOString() };
+      projects.push(project);
+      writeJsonFile(PROJECTS_FILE, projects);
+      sendJSON(res, 200, project);
+    }
   } catch (e) {
     sendError(res, 500, e.message || 'Failed to create project');
   }
@@ -473,14 +526,23 @@ async function handleCreateProject(req, res) {
 
 async function handleDeleteProject(req, res, id) {
   try {
-    const projects = readJsonFile(PROJECTS_FILE);
-    const index = projects.findIndex(p => p.id === id);
-    if (index === -1) {
-      return sendError(res, 404, 'Project not found');
+    if (db) {
+      const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+      if (!project) {
+        return sendError(res, 404, 'Project not found');
+      }
+      db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+      sendJSON(res, 200, { success: true, project });
+    } else {
+      const projects = readJsonFile(PROJECTS_FILE);
+      const index = projects.findIndex(p => p.id === id);
+      if (index === -1) {
+        return sendError(res, 404, 'Project not found');
+      }
+      const removed = projects.splice(index, 1)[0];
+      writeJsonFile(PROJECTS_FILE, projects);
+      sendJSON(res, 200, { success: true, project: removed });
     }
-    const removed = projects.splice(index, 1)[0];
-    writeJsonFile(PROJECTS_FILE, projects);
-    sendJSON(res, 200, { success: true, project: removed });
   } catch (e) {
     sendError(res, 500, e.message || 'Failed to delete project');
   }
@@ -502,10 +564,17 @@ async function handleCloneSandbox(req, res) {
       return sendError(res, 400, 'Invalid sandbox name. Use alphanumeric, hyphens, underscores only.');
     }
     if (!repoUrl && project) {
-      const projects = readJsonFile(PROJECTS_FILE);
-      const found = projects.find(p => p.name === project || p.id === project);
-      if (found && found.repoUrl) {
-        repoUrl = found.repoUrl;
+      if (db) {
+        const found = db.prepare('SELECT * FROM projects WHERE name = ? OR id = ?').get(project, project);
+        if (found && found.repo_url) {
+          repoUrl = found.repo_url;
+        }
+      } else {
+        const projects = readJsonFile(PROJECTS_FILE);
+        const found = projects.find(p => p.name === project || p.id === project);
+        if (found && found.repoUrl) {
+          repoUrl = found.repoUrl;
+        }
       }
     }
     if (!repoUrl) {
@@ -515,12 +584,13 @@ async function handleCloneSandbox(req, res) {
     const safeUrl = sanitizeForShell(repoUrl);
     const safeBranch = branch ? sanitizeForShell(branch) : '';
 
-    let cmd = `${SANDBOX_CMD} clone ${name} ${safeUrl}`;
+    let cmd = `${SANDBOX_CLONE_CMD} ${name} ${safeUrl}`;
     if (safeBranch) {
       cmd += ` --branch ${safeBranch}`;
     }
 
-    const output = execSync(`${cmd} 2>&1`, { encoding: 'utf-8', timeout: 30000 });
+    const output = execSync(`${cmd} 2>&1`, { encoding: 'utf-8', timeout: 120000 });
+    fs.writeFileSync('/root/data/active-sandbox', name, 'utf-8');
     sendJSON(res, 200, { success: true, message: output.trim() });
   } catch (e) {
     const msg = (e.stderr && typeof e.stderr === 'string') ? e.stderr.trim() : (e.message || 'Failed to clone sandbox');
@@ -603,14 +673,30 @@ async function handleGitCheckout(req, res, sandboxName) {
 // ============================================================
 
 async function handleListUsers(req, res) {
-  const users = readJsonFile(USERS_FILE);
-  sendJSON(res, 200, users);
+  try {
+    if (db) {
+      const users = db.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
+      const sbStmt = db.prepare("SELECT name, status, domain FROM sandboxes WHERE user_id = ?");
+      for (const u of users) {
+        const sandboxes = sbStmt.all(u.id);
+        u.sandboxes = sandboxes;
+        u.sandboxCount = sandboxes.length;
+      }
+      sendJSON(res, 200, users);
+    } else {
+      const users = readJsonFile(USERS_FILE);
+      sendJSON(res, 200, users);
+    }
+  } catch (e) {
+    sendError(res, 500, e.message || 'Failed to list users');
+  }
 }
 
 async function handleCreateUser(req, res) {
   try {
     const body = await readBody(req);
     const name = (body.name || '').trim();
+    const email = (body.email || '').trim();
     if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
       return sendError(res, 400, 'Invalid user name. Use alphanumeric, hyphens, underscores only.');
     }
@@ -629,17 +715,25 @@ async function handleCreateUser(req, res) {
       }
     }
 
-    const users = readJsonFile(USERS_FILE);
     const id = generateId(name);
-    const user = {
-      id,
-      name,
-      sandboxName,
-      createdAt: new Date().toISOString()
-    };
-    users.push(user);
-    writeJsonFile(USERS_FILE, users);
-    sendJSON(res, 200, user);
+    if (db) {
+      db.prepare('INSERT INTO users (id, name, email) VALUES (?, ?, ?)').run(id, name, email || null);
+      db.prepare('UPDATE sandboxes SET user_id = ? WHERE name = ?').run(id, sandboxName);
+      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+      user.sandboxName = sandboxName;
+      sendJSON(res, 200, user);
+    } else {
+      const users = readJsonFile(USERS_FILE);
+      const user = {
+        id,
+        name,
+        sandboxName,
+        createdAt: new Date().toISOString()
+      };
+      users.push(user);
+      writeJsonFile(USERS_FILE, users);
+      sendJSON(res, 200, user);
+    }
   } catch (e) {
     sendError(res, 500, e.message || 'Failed to create user');
   }
@@ -647,17 +741,28 @@ async function handleCreateUser(req, res) {
 
 async function handleDeleteUser(req, res, id) {
   try {
-    const users = readJsonFile(USERS_FILE);
-    const index = users.findIndex(u => u.id === id);
-    if (index === -1) {
-      return sendError(res, 404, 'User not found');
+    let removed;
+    if (db) {
+      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+      if (!user) {
+        return sendError(res, 404, 'User not found');
+      }
+      removed = user;
+      db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    } else {
+      const users = readJsonFile(USERS_FILE);
+      const index = users.findIndex(u => u.id === id);
+      if (index === -1) {
+        return sendError(res, 404, 'User not found');
+      }
+      removed = users.splice(index, 1)[0];
+      writeJsonFile(USERS_FILE, users);
     }
-    const removed = users.splice(index, 1)[0];
-    writeJsonFile(USERS_FILE, users);
 
+    const sandboxName = removed.sandboxName || (removed.name ? `user-${removed.name}` : '');
     try {
-      if (removed.sandboxName && /^[a-zA-Z0-9_-]+$/.test(removed.sandboxName)) {
-        execSync(`${SANDBOX_CMD} destroy ${removed.sandboxName} 2>&1`, { encoding: 'utf-8', timeout: 30000 });
+      if (sandboxName && /^[a-zA-Z0-9_-]+$/.test(sandboxName)) {
+        execSync(`${SANDBOX_CMD} destroy ${sandboxName} 2>&1`, { encoding: 'utf-8', timeout: 30000 });
       }
     } catch (_) {}
 
@@ -665,6 +770,203 @@ async function handleDeleteUser(req, res, id) {
   } catch (e) {
     sendError(res, 500, e.message || 'Failed to delete user');
   }
+}
+
+// ============================================================
+// NEW ENDPOINTS: Workspaces
+// ============================================================
+
+async function handleCreateWorkspace(req, res) {
+  try {
+    if (!db) {
+      return sendError(res, 501, 'Workspaces require SQLite database');
+    }
+    const body = await readBody(req);
+    const userId = (body.userId || '').trim();
+    const projectId = (body.projectId || '').trim();
+    const branch = (body.branch || 'main').trim();
+    const purpose = (body.purpose || '').trim();
+    const sandboxName = (body.sandboxName || '').trim() || null;
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+    if (!user || !project) {
+      return sendError(res, 404, 'User or project not found');
+    }
+
+    const name = sandboxName || `${user.name}-${project.name}-${branch}`.substring(0, 64);
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      return sendError(res, 400, 'Invalid sandbox name generated');
+    }
+
+    const safeUrl = sanitizeForShell(project.repo_url || '');
+    const safeBranch = sanitizeForShell(branch);
+    if (!safeUrl) {
+      return sendError(res, 400, 'Project has no repository URL');
+    }
+
+    let cmd = `${SANDBOX_CLONE_CMD} ${name} ${safeUrl}`;
+    if (safeBranch && safeBranch !== 'main') {
+      cmd += ` --branch ${safeBranch}`;
+    }
+    execSync(`${cmd} 2>&1`, { encoding: 'utf-8', timeout: 120000 });
+    fs.writeFileSync('/root/data/active-sandbox', name, 'utf-8');
+
+    if (safeBranch && safeBranch !== 'main') {
+      try {
+        execSync(`${SANDBOX_CMD} ${name} bash -c 'cd /workspace && git checkout -b ${safeBranch}' 2>&1`, {
+          encoding: 'utf-8', timeout: 15000
+        });
+      } catch (_) {}
+    }
+
+    try {
+      const dir = '/root/data';
+      const confPath = `${dir}/git-token.conf`;
+      if (fs.existsSync(confPath)) {
+        const confContent = fs.readFileSync(confPath, 'utf-8');
+        const getToken = (line) => { const m = line.match(/="(.*)"/); return m ? m[1] : ''; };
+        const gProviderUrl = confContent.split('\n').find(l => l.startsWith('GIT_PROVIDER_URL'));
+        const gToken = confContent.split('\n').find(l => l.startsWith('GIT_TOKEN'));
+        const gTokenUser = confContent.split('\n').find(l => l.startsWith('GIT_TOKEN_USER'));
+        if (gProviderUrl && gToken) {
+          const pUrl = getToken(gProviderUrl);
+          const tk = getToken(gToken);
+          const tu = gTokenUser ? getToken(gTokenUser) : 'oauth2';
+          if (tk) {
+            const sbRow = db.prepare('SELECT pid FROM sandboxes WHERE name = ?').get(name);
+            if (sbRow && sbRow.pid) {
+              execSync(
+                `nsenter -t ${sbRow.pid} -m -n -p -u -- bash -c 'export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; ` +
+                `git config --global credential.helper "store --file /root/.git-credentials"; ` +
+                `echo "https://${tu}:${tk}@${pUrl}" > /root/.git-credentials; ` +
+                `git config --global user.email "sandbox@sandbox-box.local"; ` +
+                `git config --global user.name "Sandbox Box"; ` +
+                `chmod 600 /root/.git-credentials'`,
+                { timeout: 5000 }
+              );
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    db.prepare('UPDATE sandboxes SET user_id = ?, project_id = ?, branch = ?, purpose = ? WHERE name = ?')
+      .run(userId, projectId, branch, purpose || null, name);
+
+    const workspace = db.prepare(
+      `SELECT s.*, u.name as user_name, p.name as project_name
+       FROM sandboxes s
+       LEFT JOIN users u ON s.user_id = u.id
+       LEFT JOIN projects p ON s.project_id = p.id
+       WHERE s.name = ?`
+    ).get(name);
+
+    sendJSON(res, 200, { workspace });
+  } catch (e) {
+    const msg = (e.stderr && typeof e.stderr === 'string') ? e.stderr.trim() : (e.message || 'Failed to create workspace');
+    sendError(res, 500, msg);
+  }
+}
+
+async function handleListWorkspaces(req, res) {
+  try {
+    if (!db) {
+      return sendError(res, 501, 'Workspaces require SQLite database');
+    }
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    let sql = `SELECT s.*, u.name as user_name, p.name as project_name
+               FROM sandboxes s
+               LEFT JOIN users u ON s.user_id = u.id
+               LEFT JOIN projects p ON s.project_id = p.id
+               WHERE s.user_id IS NOT NULL OR s.project_id IS NOT NULL`;
+    const params = [];
+    const userId = url.searchParams.get('userId');
+    const projectId = url.searchParams.get('projectId');
+    if (userId) { sql += ' AND s.user_id = ?'; params.push(userId); }
+    if (projectId) { sql += ' AND s.project_id = ?'; params.push(projectId); }
+    sql += ' ORDER BY s.created_at DESC';
+
+    const workspaces = db.prepare(sql).all(...params);
+    sendJSON(res, 200, workspaces);
+  } catch (e) {
+    sendError(res, 500, e.message || 'Failed to list workspaces');
+  }
+}
+
+async function handleDeleteWorkspace(req, res, sandboxName) {
+  try {
+    if (!db) {
+      return sendError(res, 501, 'Workspaces require SQLite database');
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(sandboxName)) {
+      return sendError(res, 400, 'Invalid sandbox name');
+    }
+    const workspace = db.prepare(
+      `SELECT s.*, u.name as user_name, p.name as project_name
+       FROM sandboxes s
+       LEFT JOIN users u ON s.user_id = u.id
+       LEFT JOIN projects p ON s.project_id = p.id
+       WHERE s.name = ?`
+    ).get(sandboxName);
+    if (!workspace) {
+      return sendError(res, 404, 'Workspace not found');
+    }
+    execSync(`${SANDBOX_CMD} destroy ${sandboxName} 2>&1`, { encoding: 'utf-8', timeout: 30000 });
+    sendJSON(res, 200, { success: true, workspace });
+  } catch (e) {
+    const msg = (e.stderr && typeof e.stderr === 'string') ? e.stderr.trim() : (e.message || 'Failed to delete workspace');
+    sendError(res, 500, msg);
+  }
+}
+
+// ============================================================
+// Git token management
+// ============================================================
+
+function handleGetGitConfig(req, res) {
+    const confPath = '/root/data/git-token.conf';
+    if (fs.existsSync(confPath)) {
+        const content = fs.readFileSync(confPath, 'utf-8');
+        const providerUrl = content.match(/GIT_PROVIDER_URL="([^"]+)"/)?.[1] || '';
+        const tokenUser = content.match(/GIT_TOKEN_USER="([^"]+)"/)?.[1] || 'oauth2';
+        const hasToken = content.includes('GIT_TOKEN=') && content.match(/GIT_TOKEN="([^"]+)"/)?.[1]?.length > 0;
+        sendJSON(res, 200, { configured: hasToken, providerUrl, tokenUser, tokenMasked: hasToken ? '****' + content.match(/GIT_TOKEN="[^"]*(.{4})"/)?.[1] : '' });
+    } else {
+        sendJSON(res, 200, { configured: false });
+    }
+}
+
+function handleSetGitConfig(req, res) {
+    readBody(req).then(body => {
+        const { providerUrl, token, tokenUser } = body;
+        if (!providerUrl || !token) return sendError(res, 400, 'providerUrl and token are required');
+        
+        const dir = '/root/data';
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        
+        const conf = `GIT_PROVIDER_URL="${providerUrl}"\nGIT_TOKEN="${token}"\nGIT_TOKEN_USER="${tokenUser || 'oauth2'}"\n`;
+        fs.writeFileSync(`${dir}/git-token.conf`, conf);
+        
+        try {
+            const sandboxes = db?.prepare?.('SELECT name, pid FROM sandboxes WHERE status = ?')?.all?.('running') || [];
+            for (const sb of sandboxes) {
+                const pid = sb.pid;
+                if (!pid) continue;
+                try {
+                    execSync(
+                        `nsenter -t ${pid} -m -n -p -u -- bash -c 'export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; ` +
+                        `git config --global credential.helper "store --file /root/.git-credentials"; ` +
+                        `echo "https://${tokenUser || 'oauth2'}:${token}@${providerUrl}" > /root/.git-credentials; ` +
+                        `chmod 600 /root/.git-credentials'`,
+                        { timeout: 5000 }
+                    );
+                } catch (e) { /* skip failed sandboxes */ }
+            }
+        } catch (e) { /* no db */ }
+        
+        sendJSON(res, 200, { success: true, message: 'Git token configured and applied to running sandboxes' });
+    }).catch(e => sendError(res, 500, e.message));
 }
 
 // ============================================================
@@ -692,7 +994,7 @@ function startRpc() {
   if (rpcProcess) return;
 
   const cwd = process.env.RPC_CWD || '/root';
-  const args = ['--mode', 'rpc', '--no-session'];
+  const args = ['--mode', 'rpc', '--no-session', '--extension', '/root/.pi/agent/extensions/sandbox-box/index.js'];
 
   rpcProcess = spawn('pi', args, {
     cwd,
@@ -768,6 +1070,20 @@ function extractToolData(content) {
       var block = content[i];
       if (block.type === 'text' && block.text) {
         textParts.push(block.text);
+      } else if (block.type === 'toolCall') {
+        var args = '';
+        if (typeof block.arguments === 'string') {
+          args = block.arguments;
+          try { args = JSON.stringify(JSON.parse(block.arguments), null, 2); } catch {}
+        } else if (block.arguments) {
+          args = JSON.stringify(block.arguments, null, 2);
+        }
+        toolCalls.push({
+          id: block.id || '',
+          name: block.name || 'unknown',
+          arguments: args,
+          result: ''
+        });
       } else if (block.type === 'tool_use') {
         toolCalls.push({
           name: block.name || 'unknown',
@@ -811,29 +1127,88 @@ function handleRpcEvent(event) {
         timestamp: new Date().toISOString()
       };
     }
-    const aev = event.assistantMessageEvent;
+
+    var partial = event.partial;
+    if (partial && partial.content && Array.isArray(partial.content)) {
+      for (var ci = 0; ci < partial.content.length; ci++) {
+        var block = partial.content[ci];
+        if (block.type === 'toolCall') {
+          var tcEntry = {
+            id: block.id || '',
+            name: block.name || 'unknown',
+            arguments: block.arguments || '',
+            result: ''
+          };
+          if (!currentStreamMsg.tool_calls) currentStreamMsg.tool_calls = [];
+          currentStreamMsg.tool_calls.push(tcEntry);
+          broadcastToChat({
+            type: 'tool_call',
+            tool: { id: tcEntry.id, name: tcEntry.name, arguments: tcEntry.arguments }
+          });
+        }
+      }
+    }
+
+    var aev = event.assistantMessageEvent;
     if (aev) {
       if (aev.type === 'text_delta') {
         currentStreamMsg.content += aev.delta || '';
       } else if (aev.type === 'tool_use') {
-        const tcEntry = {
+        var tcEntry2 = {
+          id: aev.id || '',
           name: aev.name || 'unknown',
           arguments: aev.input ? JSON.stringify(aev.input, null, 2) : '',
           result: ''
         };
         if (!currentStreamMsg.tool_calls) currentStreamMsg.tool_calls = [];
-        currentStreamMsg.tool_calls.push(tcEntry);
+        currentStreamMsg.tool_calls.push(tcEntry2);
         broadcastToChat({
           type: 'tool_call',
-          name: tcEntry.name,
-          arguments: aev.input ? JSON.stringify(aev.input) : '',
-          result: ''
+          tool: { id: tcEntry2.id, name: tcEntry2.name, arguments: tcEntry2.arguments }
         });
       }
     }
+
     broadcastToChat({ type: 'stream', data: event });
+
+  } else if (event.type === 'tool_execution_start') {
+    broadcastToChat({
+      type: 'tool_execution',
+      status: 'start',
+      toolName: event.toolName,
+      toolCallId: event.toolCallId,
+      args: event.args
+    });
+
+  } else if (event.type === 'tool_execution_update') {
+    var updateText = '';
+    if (event.partialResult && event.partialResult.content && event.partialResult.content[0]) {
+      updateText = event.partialResult.content[0].text || '';
+    }
+    broadcastToChat({
+      type: 'tool_execution',
+      status: 'update',
+      output: updateText
+    });
+
+  } else if (event.type === 'tool_execution_end') {
+    var endText = '';
+    if (event.result && event.result.content && event.result.content[0]) {
+      endText = event.result.content[0].text || '';
+    }
+    broadcastToChat({
+      type: 'tool_execution',
+      status: 'end',
+      toolName: event.toolName,
+      toolCallId: event.toolCallId,
+      result: endText,
+      isError: event.isError || false,
+      durationMs: event.durationMs || 0
+    });
+
   } else if (event.type === 'message_end') {
     broadcastToChat({ type: 'done', data: event });
+
   } else if (event.type === 'agent_end') {
     currentStreamMsg = null;
     if (event.messages && event.messages.length > 0) {
@@ -841,20 +1216,68 @@ function handleRpcEvent(event) {
       for (var mi = 0; mi < event.messages.length; mi++) {
         var m = event.messages[mi];
         if (m.role === 'assistant') {
-          var extracted = extractToolData(m.content);
-          var msgEntry = {
+          var hasToolCall = false;
+          if (Array.isArray(m.content)) {
+            for (var k = 0; k < m.content.length; k++) {
+              if (m.content[k].type === 'toolCall') { hasToolCall = true; break; }
+            }
+          }
+
+          if (hasToolCall) {
+            var msgEntry = {
+              id: m.entryId || ('msg-' + Date.now() + '-' + mi),
+              role: 'assistant',
+              content: m.content,
+              timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : new Date().toISOString()
+            };
+            var extracted = extractToolData(m.content);
+            if (extracted.toolCalls.length > 0) {
+              msgEntry.tool_calls = extracted.toolCalls;
+              pendingToolCalls = extracted.toolCalls;
+            }
+            messageHistory.push(msgEntry);
+          } else {
+            var extracted2 = extractToolData(m.content);
+            var msgEntry2 = {
+              id: m.entryId || ('msg-' + Date.now() + '-' + mi),
+              role: 'assistant',
+              content: extracted2.text || flattenContent(m.content),
+              timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : new Date().toISOString()
+            };
+            if (extracted2.toolCalls.length > 0) {
+              msgEntry2.tool_calls = extracted2.toolCalls;
+              pendingToolCalls = extracted2.toolCalls;
+            } else {
+              pendingToolCalls = [];
+            }
+            messageHistory.push(msgEntry2);
+          }
+        } else if (m.role === 'toolResult') {
+          var toolResultMsg = {
             id: m.entryId || ('msg-' + Date.now() + '-' + mi),
-            role: 'assistant',
-            content: extracted.text || flattenContent(m.content),
+            role: 'toolResult',
+            content: m.content,
+            toolCallId: m.toolCallId || '',
+            toolName: m.toolName || '',
+            isError: m.isError || false,
             timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : new Date().toISOString()
           };
-          if (extracted.toolCalls.length > 0) {
-            msgEntry.tool_calls = extracted.toolCalls;
-            pendingToolCalls = extracted.toolCalls;
-          } else {
-            pendingToolCalls = [];
+          messageHistory.push(toolResultMsg);
+
+          var toolResultText = '';
+          if (typeof m.content === 'string') {
+            toolResultText = m.content;
+          } else if (Array.isArray(m.content)) {
+            toolResultText = m.content.map(function(c) {
+              if (typeof c === 'string') return c;
+              if (c.text) return c.text;
+              return JSON.stringify(c);
+            }).join('\n');
           }
-          messageHistory.push(msgEntry);
+          if (pendingToolCalls.length > 0 && toolResultText) {
+            pendingToolCalls[0].result = toolResultText;
+            pendingToolCalls.shift();
+          }
         } else if (m.role === 'user' && pendingToolCalls.length > 0) {
           var resultExtracted = extractToolData(m.content);
           for (var ri = 0; ri < resultExtracted.toolCalls.length && ri < pendingToolCalls.length; ri++) {
@@ -862,18 +1285,18 @@ function handleRpcEvent(event) {
           }
           pendingToolCalls = [];
         } else if (m.role === 'tool' || m.role === 'tool_result') {
-          var toolResult = '';
+          var toolResult2 = '';
           if (typeof m.content === 'string') {
-            toolResult = m.content;
+            toolResult2 = m.content;
           } else if (Array.isArray(m.content)) {
-            toolResult = m.content.map(function(c) {
+            toolResult2 = m.content.map(function(c) {
               if (typeof c === 'string') return c;
               if (c.text) return c.text;
               return JSON.stringify(c);
             }).join('\n');
           }
-          if (pendingToolCalls.length > 0 && toolResult) {
-            pendingToolCalls[0].result = toolResult;
+          if (pendingToolCalls.length > 0 && toolResult2) {
+            pendingToolCalls[0].result = toolResult2;
             pendingToolCalls.shift();
           }
         }
@@ -953,6 +1376,21 @@ async function handleRequest(req, res) {
       return await handleDeleteUser(req, res, userDeleteMatch[1]);
     }
 
+    // --- Workspace routes ---
+
+    if (method === 'GET' && pathname === '/api/workspaces') {
+      return await handleListWorkspaces(req, res);
+    }
+
+    if (method === 'POST' && pathname === '/api/workspaces') {
+      return await handleCreateWorkspace(req, res);
+    }
+
+    const workspaceDeleteMatch = pathname.match(/^\/api\/workspaces\/([a-zA-Z0-9_-]+)$/);
+    if (workspaceDeleteMatch && method === 'DELETE') {
+      return await handleDeleteWorkspace(req, res, workspaceDeleteMatch[1]);
+    }
+
     // --- Sandbox-specific routes ---
 
     const sandboxMatch = pathname.match(/^\/api\/sandboxes\/([a-zA-Z0-9_-]+)\/(.+)$/);
@@ -1011,6 +1449,14 @@ async function handleRequest(req, res) {
       return await handleSystemStats(req, res);
     }
 
+    if (method === 'GET' && pathname === '/api/git-config') {
+      return handleGetGitConfig(req, res);
+    }
+
+    if (method === 'POST' && pathname === '/api/git-config') {
+      return handleSetGitConfig(req, res);
+    }
+
     // --- Chat API routes ---
     if (method === 'POST' && pathname === '/api/chat/start') { startRpc(); sendJSON(res, 200, { status: 'starting' }); return; }
     if (method === 'POST' && pathname === '/api/chat/stop') { stopRpc(); sendJSON(res, 200, { status: 'stopped' }); return; }
@@ -1061,6 +1507,31 @@ async function handleRequest(req, res) {
       });
       return;
     }
+    if (method === 'POST' && pathname === '/api/chat/sandbox') {
+      readBody(req).then(function(body) {
+        try {
+          var name = (body.name || '').trim();
+          if (!name) { sendError(res, 400, 'name is required'); return; }
+          var dir = '/root/data';
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(dir + '/active-sandbox', name, 'utf-8');
+          sendJSON(res, 200, { success: true, sandbox: name });
+        } catch (e) { sendError(res, 500, e.message); }
+      });
+      return;
+    }
+    if (method === 'GET' && pathname === '/api/chat/sandbox') {
+      try {
+        var activeName = '';
+        var activePath = '/root/data/active-sandbox';
+        if (fs.existsSync(activePath)) {
+          activeName = fs.readFileSync(activePath, 'utf-8').trim();
+        }
+        sendJSON(res, 200, { sandbox: activeName });
+      } catch (e) { sendJSON(res, 200, { sandbox: '' }); }
+      return;
+    }
+
     if (method === 'POST' && pathname === '/api/chat/set_model') {
       readBody(req).then(async function(body) {
         try {
@@ -1080,6 +1551,8 @@ async function handleRequest(req, res) {
 }
 
 const server = http.createServer(handleRequest);
+server.timeout = 300000;
+server.keepAliveTimeout = 300000;
 
 server.listen(PORT, () => {
   console.log(`Sandbox Box Web UI running on http://0.0.0.0:${PORT}`);

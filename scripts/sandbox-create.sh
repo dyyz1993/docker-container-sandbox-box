@@ -80,6 +80,28 @@ ttyd_pid=$!
 echo "$ttyd_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
 log "ttyd started in sandbox '${name}' on port 7681"
 
+# Start HTTP preview server inside sandbox
+nsenter -t "$sb_pid" -m -n -p -u -- \
+    setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace && python3 -m http.server ${SANDBOX_DEFAULT_PORT:-3100}" < /dev/null &>/dev/null &
+log "http preview server started in sandbox '${name}' on port ${SANDBOX_DEFAULT_PORT:-3100}"
+
+# Initialize dev environment inside sandbox
+nsenter -t "$sb_pid" -m -n -p -u -- \
+    bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; git config --global user.email 'sandbox@sandbox-box.local'; git config --global user.name 'Sandbox Box'; mkdir -p /workspace" < /dev/null &>/dev/null &
+log "dev environment initialized in sandbox '${name}'"
+
+if [ -f /root/data/git-token.conf ]; then
+    source /root/data/git-token.conf
+    if [ -n "$GIT_TOKEN" ] && [ -n "$GIT_PROVIDER_URL" ]; then
+        nsenter -t "$sb_pid" -m -n -p -u -- \
+            bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; 
+            git config --global credential.helper 'store --file /root/.git-credentials';
+            echo \"https://\${GIT_TOKEN_USER:-oauth2}:\${GIT_TOKEN}@\${GIT_PROVIDER_URL}\" > /root/.git-credentials;
+            chmod 600 /root/.git-credentials" < /dev/null &>/dev/null &
+        log "git credentials configured in sandbox '${name}'"
+    fi
+fi
+
 if [ -d /sys/fs/cgroup ]; then
     mkdir -p "/sys/fs/cgroup/sandbox-${name}" 2>/dev/null \
     && echo 536870912 > "/sys/fs/cgroup/sandbox-${name}/memory.max" 2>/dev/null \
@@ -99,6 +121,9 @@ if [ -f "$start_sh" ]; then
         sleep 0.1
     done < "$start_sh"
 fi
+
+echo "$name" > /root/data/active-sandbox
+log "active sandbox set to '${name}'"
 
 echo "Sandbox '${name}' created"
 echo "  PID:     ${sb_pid}"

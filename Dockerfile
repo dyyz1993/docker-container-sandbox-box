@@ -19,6 +19,8 @@ COPY scripts/ /root/scripts/
 COPY web-ui/ /root/web-ui/
 COPY entrypoint.sh /entrypoint.sh
 
+RUN cd /root/web-ui && npm install --production 2>&1 || true
+
 RUN chmod +x /entrypoint.sh /root/scripts/sandbox*
 
 EXPOSE 80 22 7681

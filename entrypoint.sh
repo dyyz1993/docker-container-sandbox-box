@@ -77,6 +77,27 @@ if [ -f "$SANDBOX_DB" ]; then
         echo $! > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
         log "ttyd started in recovered sandbox '${name}'"
 
+        # Start HTTP preview server
+        nsenter -t "$sb_pid" -m -n -p -u -- \
+            setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace 2>/dev/null && python3 -m http.server ${SANDBOX_DEFAULT_PORT:-3100}" < /dev/null &>/dev/null &
+        log "http preview server restored in sandbox '${name}'"
+
+        nsenter -t "$sb_pid" -m -n -p -u -- \
+            bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; git config --global user.email 'sandbox@sandbox-box.local'; git config --global user.name 'Sandbox Box'" < /dev/null &>/dev/null &
+        log "dev environment restored in sandbox '${name}'"
+
+        if [ -f /root/data/git-token.conf ]; then
+            source /root/data/git-token.conf
+            if [ -n "$GIT_TOKEN" ] && [ -n "$GIT_PROVIDER_URL" ]; then
+                nsenter -t "$sb_pid" -m -n -p -u -- \
+                    bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin;
+                    git config --global credential.helper 'store --file /root/.git-credentials';
+                    echo \"https://\${GIT_TOKEN_USER:-oauth2}:\${GIT_TOKEN}@\${GIT_PROVIDER_URL}\" > /root/.git-credentials;
+                    chmod 600 /root/.git-credentials" < /dev/null &>/dev/null &
+                log "git credentials restored in sandbox '${name}'"
+            fi
+        fi
+
         start_sh="${sb_dir}/start.sh"
         if [ -f "$start_sh" ]; then
             log "resuming services for sandbox '${name}'"

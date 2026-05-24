@@ -42,8 +42,26 @@ CREATE TABLE IF NOT EXISTS sandboxes (
     port INTEGER DEFAULT 3100,
     mount_path TEXT,
     services TEXT DEFAULT '',
+    user_id TEXT,
+    project_id TEXT,
+    branch TEXT,
+    purpose TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    repo_url TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    email TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 SQL
         log "database initialized"
@@ -53,6 +71,25 @@ SQL
         if [ "$has_services" -eq 0 ]; then
             sqlite3 "$SANDBOX_DB" "ALTER TABLE sandboxes ADD COLUMN services TEXT DEFAULT '';" 2>/dev/null || true
         fi
+
+        sqlite3 "$SANDBOX_DB" "ALTER TABLE sandboxes ADD COLUMN user_id TEXT;" 2>/dev/null || true
+        sqlite3 "$SANDBOX_DB" "ALTER TABLE sandboxes ADD COLUMN project_id TEXT;" 2>/dev/null || true
+        sqlite3 "$SANDBOX_DB" "ALTER TABLE sandboxes ADD COLUMN branch TEXT;" 2>/dev/null || true
+        sqlite3 "$SANDBOX_DB" "ALTER TABLE sandboxes ADD COLUMN purpose TEXT;" 2>/dev/null || true
+
+        sqlite3 "$SANDBOX_DB" "CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            repo_url TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );" 2>/dev/null || true
+
+        sqlite3 "$SANDBOX_DB" "CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            email TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );" 2>/dev/null || true
     fi
 }
 

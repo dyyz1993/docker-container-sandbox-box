@@ -1,0 +1,7 @@
+{
+  "name": "sandbox-box-web-ui",
+  "private": true,
+  "dependencies": {
+    "better-sqlite3": "^11.0.0"
+  }
+}

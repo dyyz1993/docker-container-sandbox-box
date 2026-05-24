@@ -51,6 +51,8 @@ a:hover{text-decoration:underline}
 .inline-form.active{display:flex}
 .inline-form input{flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none}
 .inline-form input:focus{border-color:var(--highlight)}
+.inline-form select{padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none;flex:1}
+.inline-form select:focus{border-color:var(--highlight)}
 
 .data-table{width:100%;border-collapse:collapse}
 .data-table th{text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;color:var(--text-dim);font-weight:600;background:rgba(15,52,96,0.2);border-bottom:1px solid var(--border);position:sticky;top:0}
@@ -155,6 +157,15 @@ a:hover{text-decoration:underline}
 .agent-sidebar-section{padding:12px;border-bottom:1px solid var(--border);flex-shrink:0}
 .agent-sidebar-section h4{font-size:11px;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;letter-spacing:0.5px}
 .agent-sidebar select{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none;cursor:pointer}
+.agent-sidebar-label{font-size:11px;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px;letter-spacing:0.5px;display:flex;align-items:center;gap:6px}
+.active-sandbox-indicator{display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(15,52,96,0.3);border-radius:6px;font-size:12px;min-height:28px}
+.active-sandbox-indicator .indicator-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.active-sandbox-indicator .indicator-dot.running{background:var(--green);box-shadow:0 0 6px var(--green)}
+.active-sandbox-indicator .indicator-dot.stopped{background:var(--text-dim)}
+.active-sandbox-indicator .indicator-dot.unknown{background:var(--orange)}
+.active-sandbox-indicator .indicator-name{font-weight:600;color:var(--text)}
+.active-sandbox-indicator .indicator-ip{color:var(--text-dim);font-size:11px}
+.active-sandbox-indicator .indicator-empty{color:var(--text-dim);font-style:italic}
 .agent-sidebar select:focus{border-color:var(--highlight)}
 .agent-status{display:flex;align-items:center;gap:6px;font-size:12px;padding:6px 0}
 .agent-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
@@ -197,14 +208,31 @@ a:hover{text-decoration:underline}
 .chat-msg-bubble em{font-style:italic}
 .chat-msg-bubble h1,.chat-msg-bubble h2,.chat-msg-bubble h3{font-size:14px;font-weight:600;margin:8px 0 4px}
 
-.tool-call-card{margin:8px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-size:12px}
-.tool-call-header{display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(15,52,96,0.3);cursor:pointer;user-select:none}
-.tool-call-header .tool-icon{color:var(--orange);font-size:14px}
+.tool-call-block{background:rgba(15,52,96,0.25);border:1px solid var(--border);border-radius:8px;margin:8px 0;overflow:hidden}
+.tool-call-header{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;user-select:none;font-size:13px;background:rgba(15,52,96,0.15);transition:background 0.15s}
+.tool-call-header:hover{background:rgba(15,52,96,0.35)}
+.tool-call-header .tool-icon{font-size:14px}
 .tool-call-header .tool-name{font-weight:600;color:var(--text);flex:1}
 .tool-call-header .tool-toggle{color:var(--text-dim);font-size:10px;transition:transform 0.2s}
 .tool-call-header .tool-toggle.collapsed{transform:rotate(-90deg)}
-.tool-call-body{padding:8px 10px;background:rgba(0,0,0,0.15);color:var(--text-dim);font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto}
-.tool-call-body.collapsed{display:none}
+.tool-call-body{max-height:0;overflow:hidden;transition:max-height 0.2s ease}
+.tool-call-body.expanded{max-height:500px;overflow-y:auto}
+.tool-call-args{font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;background:#282c34;color:#abb2bf;padding:8px 10px;border-radius:0 0 8px 8px;margin:0}
+.tool-result-block{background:rgba(0,0,0,0.15);border:1px solid var(--border);border-radius:8px;margin:4px 0 8px 20px;overflow:hidden}
+.tool-result-header{padding:6px 12px;font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.tool-result-header.success{background:rgba(76,175,80,0.15);color:var(--green)}
+.tool-result-header.error{background:rgba(244,67,54,0.15);color:var(--red)}
+.tool-result-output-wrap{max-height:0;overflow:hidden;transition:max-height 0.2s ease}
+.tool-result-output-wrap.expanded{max-height:400px;overflow-y:auto}
+.tool-result-output{font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;background:#1e1e1e;color:#d4d4d4;padding:8px 12px}
+.thinking-block{color:var(--text-dim);font-style:italic;font-size:13px;padding:6px 10px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px}
+.thinking-block:hover{background:rgba(255,255,255,0.03);border-radius:4px}
+.thinking-block-content{max-height:0;overflow:hidden;transition:max-height 0.2s ease;color:var(--text-dim);font-style:italic;font-size:12px;padding:0 10px}
+.thinking-block-content.expanded{max-height:500px;overflow-y:auto;padding:4px 10px 8px}
+.tool-spinner{display:inline-block;animation:spin 1s linear infinite;font-size:12px}
+.tool-call-args-label{font-size:11px;color:var(--text-dim);padding:6px 10px 0;text-transform:uppercase;letter-spacing:0.5px}
+.tool-live-output{font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;background:#1e1e1e;color:#d4d4d4;padding:8px 12px;max-height:200px;overflow-y:auto}
+.tool-call-card{margin:8px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-size:12px}
 
 .typing-indicator{display:flex;align-items:center;gap:4px;padding:10px 14px;align-self:flex-start}
 .typing-indicator span{width:6px;height:6px;background:var(--text-dim);border-radius:50%;animation:typingBounce 1.4s infinite}
@@ -236,8 +264,10 @@ a:hover{text-decoration:underline}
   <div class="tabs" id="tabNav">
     <button class="tab-btn active" data-tab="sandboxes">Sandboxes</button>
     <button class="tab-btn" data-tab="projects">Projects</button>
+    <button class="tab-btn" data-tab="workspaces">Workspaces</button>
     <button class="tab-btn" data-tab="users">Users</button>
     <button class="tab-btn" data-tab="agent">Agent</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
   </div>
 </div>
 
@@ -291,8 +321,8 @@ a:hover{text-decoration:underline}
         <button class="btn btn-primary btn-sm" id="pj-btnCreate">+ Create Project</button>
       </div>
       <div class="inline-form" id="pj-createForm">
-        <input type="text" id="pj-createName" placeholder="Project name" maxlength="50" />
-        <input type="text" id="pj-createRepo" placeholder="Git repo URL (https://...)" />
+        <input type="text" id="pj-createName" placeholder="Project Name" maxlength="50" />
+        <input type="text" id="pj-createRepo" placeholder="Git Repo URL (https://...)" />
         <button class="btn btn-primary btn-sm" id="pj-btnCreateSubmit">Create</button>
         <button class="btn btn-ghost btn-sm" id="pj-btnCreateCancel">Cancel</button>
       </div>
@@ -302,12 +332,48 @@ a:hover{text-decoration:underline}
     </div>
     <div class="panel" id="pj-detail">
       <div class="panel-header">
-        <h2 id="pj-detailTitle">Project Detail</h2>
+        <h2 id="pj-detailTitle">Project Details</h2>
       </div>
       <div class="panel-body" id="pj-detailContent">
         <div class="empty-state">
           <div class="icon">&#128193;</div>
-          <div>Select a project to view workspaces</div>
+          <div>Select a project to view details and workspaces</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-panel" id="panel-workspaces">
+  <div class="main-split">
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Workspaces</h2>
+        <button class="btn btn-primary btn-sm" id="ws-btnCreate">+ Create Workspace</button>
+      </div>
+      <div class="inline-form" id="ws-createForm">
+        <select id="ws-createUser" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none">
+          <option value="">Select User...</option>
+        </select>
+        <select id="ws-createProject" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none">
+          <option value="">Select Project...</option>
+        </select>
+        <input type="text" id="ws-createBranch" placeholder="Branch Name" value="main" />
+        <button class="btn btn-primary btn-sm" id="ws-btnCreateSubmit">Create</button>
+        <button class="btn btn-ghost btn-sm" id="ws-btnCreateCancel">Cancel</button>
+      </div>
+      <div class="panel-body" id="ws-list">
+        <div class="loading"><div class="spinner"></div>Loading...</div>
+      </div>
+    </div>
+    <div class="panel" id="ws-detail">
+      <div class="panel-header">
+        <h2 id="ws-detailTitle">Workspace Details</h2>
+      </div>
+      <div class="panel-body" id="ws-detailContent">
+        <div class="empty-state">
+          <div class="icon">&#128187;</div>
+          <div>Select a workspace to view details</div>
         </div>
       </div>
     </div>
@@ -322,7 +388,8 @@ a:hover{text-decoration:underline}
         <button class="btn btn-primary btn-sm" id="usr-btnCreate">+ Create User</button>
       </div>
       <div class="inline-form" id="usr-createForm">
-        <input type="text" id="usr-createName" placeholder="User name" maxlength="50" />
+        <input type="text" id="usr-createName" placeholder="Username" maxlength="50" />
+        <input type="text" id="usr-createEmail" placeholder="Email (optional)" />
         <button class="btn btn-primary btn-sm" id="usr-btnCreateSubmit">Create</button>
         <button class="btn btn-ghost btn-sm" id="usr-btnCreateCancel">Cancel</button>
       </div>
@@ -332,12 +399,36 @@ a:hover{text-decoration:underline}
     </div>
     <div class="panel" id="usr-detail">
       <div class="panel-header">
-        <h2 id="usr-detailTitle">User Detail</h2>
+        <h2 id="usr-detailTitle">User Details</h2>
       </div>
       <div class="panel-body" id="usr-detailContent">
         <div class="empty-state">
           <div class="icon">&#128100;</div>
           <div>Select a user to view details</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-panel" id="panel-settings">
+  <div class="main-split">
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Git Configuration</h2>
+      </div>
+      <div class="panel-body" id="gitconfig-content">
+        <div class="loading"><div class="spinner"></div>Loading...</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <h2>System Information</h2>
+      </div>
+      <div class="panel-body" id="sysinfo-content">
+        <div class="empty-state">
+          <div class="icon">&#9881;</div>
+          <div>System information</div>
         </div>
       </div>
     </div>
@@ -351,9 +442,15 @@ a:hover{text-decoration:underline}
         <select id="agent-model-select">
           <option value="">Select model...</option>
         </select>
-        <select id="agent-sandbox-select">
-          <option value="">Select sandbox...</option>
-        </select>
+        <div>
+          <div class="agent-sidebar-label">当前沙盒 <span id="agent-sandbox-count" style="font-weight:600;color:var(--text)"></span></div>
+          <select id="agent-sandbox-select">
+            <option value="">Select sandbox...</option>
+          </select>
+        </div>
+        <div class="active-sandbox-indicator" id="agent-active-sandbox">
+          <span class="indicator-empty">No sandbox selected</span>
+        </div>
         <div class="agent-status">
           <div class="agent-status-dot disconnected" id="agent-status-dot"></div>
           <span id="agent-status-text">Disconnected</span>
@@ -377,6 +474,10 @@ a:hover{text-decoration:underline}
         <select id="agent-toolbar-sandbox">
           <option value="">Sandbox...</option>
         </select>
+        <div class="toolbar-separator"></div>
+        <div class="active-sandbox-indicator" id="agent-toolbar-sandbox-indicator" style="font-size:11px">
+          <span class="indicator-empty">No sandbox</span>
+        </div>
       </div>
       <div class="chat-messages" id="chat-messages"></div>
       <div class="chat-input-area">
@@ -475,8 +576,10 @@ function switchTab(tab) {
   $$('.tab-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'panel-' + tab); });
   if (tab === 'sandboxes') renderSandboxes();
   else if (tab === 'projects') renderProjects();
+  else if (tab === 'workspaces') renderWorkspaces();
   else if (tab === 'users') renderUsers();
-  else if (tab === 'agent') { agentConnect(); agentLoadSandboxes(); }
+  else if (tab === 'agent') { agentConnect(); agentLoadSandboxes(); agentLoadActiveSandbox(); startSandboxRefresh(); }
+  else if (tab === 'settings') renderGitConfig();
 }
 
 $('#tabNav').addEventListener('click', function(e) {
@@ -817,20 +920,23 @@ function renderProjects() {
   var container = $('#pj-list');
   return api('/api/projects').then(function(projects) {
     if (!projects.length) {
-      container.innerHTML = '<div class="empty-state"><div class="icon">&#128193;</div><div>No projects found</div></div>';
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#128193;</div><div>Projects are empty</div></div>';
       return;
     }
-    var html = '<table class="data-table"><thead><tr><th>Name</th><th>Repo</th><th>Workspaces</th><th>Actions</th></tr></thead><tbody>';
+    var html = '<table class="data-table"><thead><tr><th>Name</th><th>Repo URL</th><th>Sandbox Count</th><th>Created Date</th><th>Actions</th></tr></thead><tbody>';
     for (var i = 0; i < projects.length; i++) {
       var p = projects[i];
-      var sel = selectedProject === p.name ? ' selected' : '';
-      var wsCount = (p.workspaces || []).length;
+      var sel = selectedProject === p.id ? ' selected' : '';
+      var created = p.created_at ? new Date(p.created_at).toLocaleDateString() : '-';
       html += '<tr class="' + sel + '">' +
-        '<td><span class="clickable" data-pj-action="select" data-pj-name="' + esc(p.name) + '">' + esc(p.name) + '</span></td>' +
-        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.repoUrl || '-') + '</td>' +
-        '<td>' + wsCount + '</td>' +
-        '<td><button class="btn btn-danger btn-sm" data-pj-action="delete" data-pj-name="' + esc(p.name) + '">Delete</button></td>' +
-        '</tr>';
+        '<td><span class="clickable" data-pj-action="select" data-pj-id="' + esc(p.id) + '">' + esc(p.name) + '</span></td>' +
+        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(p.repo_url || '') + '">' + esc(p.repo_url || '-') + '</td>' +
+        '<td>' + (p.sandboxCount || 0) + '</td>' +
+        '<td>' + esc(created) + '</td>' +
+        '<td>' +
+        '<button class="btn btn-primary btn-sm" data-pj-action="cloneWs" data-pj-id="' + esc(p.id) + '" data-pj-name="' + esc(p.name) + '" style="margin-right:4px">Clone Workspace</button>' +
+        '<button class="btn btn-danger btn-sm" data-pj-action="delete" data-pj-id="' + esc(p.id) + '" data-pj-name="' + esc(p.name) + '">Delete</button>' +
+        '</td></tr>';
     }
     html += '</tbody></table>';
     container.innerHTML = html;
@@ -839,16 +945,16 @@ function renderProjects() {
   });
 }
 
-function renderProjectDetail(projectName) {
-  selectedProject = projectName;
+function renderProjectDetail(projectId) {
+  selectedProject = projectId;
   var container = $('#pj-detailContent');
-  $('#pj-detailTitle').textContent = projectName;
-  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading project...</div>';
+  $('#pj-detailTitle').textContent = 'Project Details';
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
 
   return api('/api/projects').then(function(projects) {
     var project = null;
     for (var i = 0; i < projects.length; i++) {
-      if (projects[i].name === projectName) { project = projects[i]; break; }
+      if (projects[i].id === projectId) { project = projects[i]; break; }
     }
     if (!project) {
       container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>Project not found</div></div>';
@@ -857,88 +963,54 @@ function renderProjectDetail(projectName) {
 
     renderProjects();
 
-    var workspaces = project.workspaces || [];
-    var html = '<div style="padding:12px 16px;border-bottom:1px solid var(--border);background:rgba(15,52,96,0.15)">' +
-      '<div style="font-size:12px;color:var(--text-dim)">Repo: ' + esc(project.repoUrl || '-') + '</div>' +
-      '<div style="font-size:12px;color:var(--text-dim);margin-top:4px">Workspaces: ' + workspaces.length + '</div>' +
+    var created = project.created_at ? new Date(project.created_at).toLocaleString() : '-';
+    var html = '<div style="padding:16px">';
+
+    html += '<div style="background:rgba(15,52,96,0.15);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:16px">' +
+      '<h3 style="font-size:14px;margin-bottom:12px">Project Info</h3>' +
+      '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">' +
+      '<span style="color:var(--text-dim)">Name:</span><span>' + esc(project.name) + '</span>' +
+      '<span style="color:var(--text-dim)">ID:</span><span style="font-family:monospace;font-size:11px">' + esc(project.id) + '</span>' +
+      '<span style="color:var(--text-dim)">Repo URL:</span><span>' + (project.repo_url ? '<a href="' + esc(project.repo_url) + '" target="_blank">' + esc(project.repo_url) + '</a>' : '-') + '</span>' +
+      '<span style="color:var(--text-dim)">Sandbox Count:</span><span>' + (project.sandboxCount || 0) + '</span>' +
+      '<span style="color:var(--text-dim)">Created:</span><span>' + esc(created) + '</span>' +
+      '</div></div>';
+
+    html += '<div style="background:rgba(15,52,96,0.15);border:1px solid var(--border);border-radius:6px;padding:16px">' +
+      '<h3 style="font-size:14px;margin-bottom:12px">Project Workspaces</h3>' +
+      '<div id="pj-wsList"><div class="loading"><div class="spinner"></div>Loading...</div></div>' +
       '</div>';
 
-    html += '<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">' +
-      '<button class="btn btn-primary btn-sm" data-pj-action="showCreateWs">+ Create Workspace</button>' +
-      '</div>';
-
-    html += '<div class="inline-form" id="pj-wsForm">' +
-      '<input type="text" id="pj-wsName" placeholder="Workspace name" maxlength="50" />' +
-      '<input type="text" id="pj-wsBranch" placeholder="Branch (optional, default: main)" />' +
-      '<button class="btn btn-primary btn-sm" id="pj-wsSubmit">Create</button>' +
-      '<button class="btn btn-ghost btn-sm" id="pj-wsCancel">Cancel</button>' +
-      '</div>';
-
-    if (!workspaces.length) {
-      html += '<div class="empty-state" style="padding:30px"><div>No workspaces yet. Create one above.</div></div>';
-    } else {
-      for (var j = 0; j < workspaces.length; j++) {
-        var ws = workspaces[j];
-        var wsName = ws.name || ws;
-        var wsDomain = ws.domain || wsName;
-        var wsBranch = ws.branch || 'main';
-        html += '<div class="ws-card" style="margin:12px 16px" data-pj-ws="' + esc(wsName) + '">' +
-          '<div class="ws-card-header">' +
-          '<span class="ws-card-name">' + esc(wsName) + '</span>' +
-          '<div class="ws-card-actions">' +
-          '<a href="' + esc(terminalUrl(wsName)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a>' +
-          '<a href="' + esc(appUrl(wsName)) + '" target="_blank" class="btn btn-ghost btn-sm">Open</a>' +
-          '<button class="btn btn-danger btn-sm" data-pj-action="destroyWs" data-pj-ws="' + esc(wsName) + '" data-pj-project="' + esc(projectName) + '">Destroy</button>' +
-          '</div></div>' +
-          '<div class="ws-card-info">' +
-          '<span>Branch: <strong>' + esc(wsBranch) + '</strong></span>' +
-          '<span>Domain: <a href="https://' + esc(wsDomain) + '.sandbox.19930810.xyz:8443" target="_blank">' + esc(wsDomain) + '</a></span>' +
-          '</div>' +
-          '<div class="git-status" id="git-' + esc(wsName) + '">Loading git status...</div>' +
-          '<div class="push-form" id="push-' + esc(wsName) + '">' +
-          '<input type="text" id="push-msg-' + esc(wsName) + '" placeholder="Commit message" />' +
-          '<button class="btn btn-primary btn-sm" data-pj-action="doPush" data-pj-ws="' + esc(wsName) + '">Push</button>' +
-          '<button class="btn btn-ghost btn-sm" data-pj-action="cancelPush" data-pj-ws="' + esc(wsName) + '">Cancel</button>' +
-          '</div>' +
-          '<div style="margin-top:6px;display:flex;gap:6px">' +
-          '<button class="btn btn-orange btn-sm" data-pj-action="showPush" data-pj-ws="' + esc(wsName) + '">Push Changes</button>' +
-          '</div>' +
-          '</div>';
-      }
-    }
+    html += '</div>';
     container.innerHTML = html;
 
-    for (var k = 0; k < workspaces.length; k++) {
-      (function(w) {
-        var wName = w.name || w;
-        api('/api/sandboxes/' + encodeURIComponent(wName) + '/git/status')
-          .then(function(git) {
-            var el = document.getElementById('git-' + wName);
-            if (!el) return;
-            var gHtml = '<span class="git-branch">&#9432; ' + esc(git.branch || 'unknown') + '</span>';
-            if (git.modified && git.modified.length) {
-              gHtml += '<div class="git-files">Modified:';
-              for (var m = 0; m < git.modified.length; m++) {
-                gHtml += '<div>&#8226; ' + esc(git.modified[m]) + '</div>';
-              }
-              gHtml += '</div>';
-            }
-            if (git.ahead && git.ahead > 0) {
-              gHtml += ' <span style="color:var(--orange)">&#9650; ' + git.ahead + ' ahead</span>';
-            }
-            if (git.behind && git.behind > 0) {
-              gHtml += ' <span style="color:var(--red)">&#9660; ' + git.behind + ' behind</span>';
-            }
-            if ((!git.modified || !git.modified.length) && (!git.ahead || git.ahead === 0)) {
-              gHtml += ' <span style="color:var(--text-dim)">Clean</span>';
-            }
-            el.innerHTML = gHtml;
-          }).catch(function() {
-            var el = document.getElementById('git-' + wName);
-            if (el) el.innerHTML = '<span style="color:var(--text-dim)">Git status unavailable</span>';
-          });
-      })(workspaces[k]);
-    }
+    api('/api/workspaces?projectId=' + encodeURIComponent(project.id)).then(function(workspaces) {
+      var wsContainer = document.getElementById('pj-wsList');
+      if (!wsContainer) return;
+      if (!workspaces || !workspaces.length) {
+        wsContainer.innerHTML = '<div style="color:var(--text-dim);padding:8px;font-size:13px">No workspaces</div>';
+        return;
+      }
+      var wsHtml = '';
+      for (var w = 0; w < workspaces.length; w++) {
+        var ws = workspaces[w];
+        wsHtml += '<div class="ws-card">' +
+          '<div class="ws-card-header">' +
+          '<span class="ws-card-name">' + esc(ws.name) + '</span>' +
+          '<div class="ws-card-actions">' +
+          '<span class="badge badge-' + (ws.status === 'running' ? 'green' : 'gray') + '">' + esc(ws.status || 'unknown') + '</span>' +
+          '<button class="btn btn-danger btn-sm" data-ws-action="destroy" data-ws-name="' + esc(ws.name) + '">Destroy</button>' +
+          '</div></div>' +
+          '<div class="ws-card-info">' +
+          '<span>Branch: <strong>' + esc(ws.branch || '-') + '</strong></span>' +
+          '<span>User: ' + esc(ws.user_name || '-') + '</span>' +
+          '</div></div>';
+      }
+      wsContainer.innerHTML = wsHtml;
+    }).catch(function() {
+      var wsContainer = document.getElementById('pj-wsList');
+      if (wsContainer) wsContainer.innerHTML = '<div style="color:var(--text-dim)">Failed to load workspaces</div>';
+    });
   }).catch(function(e) {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
   });
@@ -949,8 +1021,8 @@ function pjCreate() {
   var repoInput = $('#pj-createRepo');
   var name = nameInput.value.trim();
   var repo = repoInput.value.trim();
-  if (!name) { toast('Project name required', 'error'); return; }
-  if (!repo) { toast('Repo URL required', 'error'); return; }
+  if (!name) { toast('Please enter a project name', 'error'); return; }
+  if (!repo) { toast('Please enter a Repo URL', 'error'); return; }
   var btn = $('#pj-btnCreateSubmit');
   btn.disabled = true;
   btn.textContent = 'Creating...';
@@ -965,69 +1037,44 @@ function pjCreate() {
     .finally(function() { btn.disabled = false; btn.textContent = 'Create'; });
 }
 
-function pjDelete(name) {
-  showConfirm('Delete Project', 'Delete project "' + name + '"? All workspaces will be destroyed.', 'Delete', 'btn-danger', function() {
-    api('/api/projects/' + encodeURIComponent(name), { method: 'DELETE' })
+function pjDelete(projectId, projectName) {
+  showConfirm('Delete Project', 'Confirm delete project "' + projectName + '"? All related workspaces will be destroyed.', 'Delete', 'btn-danger', function() {
+    api('/api/projects/' + encodeURIComponent(projectId), { method: 'DELETE' })
       .then(function() {
-        toast('Project "' + name + '" deleted', 'success');
-        if (selectedProject === name) {
+        toast('Project "' + projectName + '" deleted', 'success');
+        if (selectedProject === projectId) {
           selectedProject = null;
-          $('#pj-detailTitle').textContent = 'Project Detail';
-          $('#pj-detailContent').innerHTML = '<div class="empty-state"><div class="icon">&#128193;</div><div>Select a project to view workspaces</div></div>';
+          $('#pj-detailTitle').textContent = 'Project Details';
+          $('#pj-detailContent').innerHTML = '<div class="empty-state"><div class="icon">&#128193;</div><div>Select a project to view details and workspaces</div></div>';
         }
         renderProjects();
       }).catch(function(e) { toast(e.message, 'error'); });
   });
 }
 
-function pjCreateWs(projectName) {
-  var nameInput = $('#pj-wsName');
-  var branchInput = $('#pj-wsBranch');
-  var wsName = nameInput.value.trim();
-  var branch = branchInput.value.trim();
-  if (!wsName) { toast('Workspace name required', 'error'); return; }
-  api('/api/projects').then(function(projects) {
-    var project = null;
-    for (var i = 0; i < projects.length; i++) {
-      if (projects[i].name === projectName) { project = projects[i]; break; }
+function pjCloneToWorkspace(projectId, projectName) {
+  api('/api/users').then(function(users) {
+    if (!users.length) {
+      toast('Please create a user first', 'error');
+      return;
     }
-    if (!project || !project.repoUrl) { toast('Project repo URL not found', 'error'); return; }
-    return api('/api/sandboxes/clone', {
+    var userOptions = users.map(function(u) { return u.name; }).join(', ');
+    var userName = prompt('Enter username to create workspace for:\nAvailable: ' + userOptions);
+    if (!userName) return;
+    var user = null;
+    for (var i = 0; i < users.length; i++) {
+      if (users[i].name === userName) { user = users[i]; break; }
+    }
+    if (!user) { toast('User not found: ' + userName, 'error'); return; }
+    var branch = prompt('Branch Name:', 'main') || 'main';
+    toast('Creating workspace...', 'info');
+    api('/api/workspaces', {
       method: 'POST',
-      body: JSON.stringify({ name: wsName, repoUrl: project.repoUrl, branch: branch || 'main' })
-    });
-  }).then(function() {
-    toast('Workspace "' + wsName + '" created', 'success');
-    nameInput.value = '';
-    branchInput.value = '';
-    $('#pj-wsForm').classList.remove('active');
-    renderProjectDetail(projectName);
-  }).catch(function(e) { toast(e.message, 'error'); });
-}
-
-function pjDestroyWs(wsName, projectName) {
-  showConfirm('Destroy Workspace', 'Destroy workspace "' + wsName + '"?', 'Destroy', 'btn-danger', function() {
-    api('/api/sandboxes/' + encodeURIComponent(wsName), { method: 'DELETE' })
-      .then(function() {
-        toast('Workspace "' + wsName + '" destroyed', 'success');
-        renderProjectDetail(projectName);
-      }).catch(function(e) { toast(e.message, 'error'); });
-  });
-}
-
-function pjPush(wsName) {
-  var msgInput = document.getElementById('push-msg-' + wsName);
-  if (!msgInput) return;
-  var msg = msgInput.value.trim();
-  if (!msg) { toast('Commit message required', 'error'); return; }
-  api('/api/sandboxes/' + encodeURIComponent(wsName) + '/git/push', {
-    method: 'POST',
-    body: JSON.stringify({ message: msg })
-  }).then(function() {
-    toast('Changes pushed for "' + wsName + '"', 'success');
-    var pushForm = document.getElementById('push-' + wsName);
-    if (pushForm) pushForm.classList.remove('active');
-    if (selectedProject) renderProjectDetail(selectedProject);
+      body: JSON.stringify({ userId: user.id, projectId: projectId, branch: branch })
+    }).then(function() {
+      toast('Workspace created', 'success');
+      renderProjects();
+    }).catch(function(e) { toast(e.message, 'error'); });
   }).catch(function(e) { toast(e.message, 'error'); });
 }
 
@@ -1047,30 +1094,9 @@ document.addEventListener('click', function(e) {
   var target = e.target.closest('[data-pj-action]');
   if (!target) return;
   var action = target.dataset.pjAction;
-  if (action === 'select') renderProjectDetail(target.dataset.pjName);
-  else if (action === 'delete') pjDelete(target.dataset.pjName);
-  else if (action === 'showCreateWs') {
-    var form = $('#pj-wsForm');
-    if (form) { form.classList.toggle('active'); if (form.classList.contains('active')) $('#pj-wsName').focus(); }
-  }
-  else if (action === 'destroyWs') pjDestroyWs(target.dataset.pjWs, target.dataset.pjProject);
-  else if (action === 'showPush') {
-    var pf = document.getElementById('push-' + target.dataset.pjWs);
-    if (pf) pf.classList.toggle('active');
-  }
-  else if (action === 'cancelPush') {
-    var cp = document.getElementById('push-' + target.dataset.pjWs);
-    if (cp) cp.classList.remove('active');
-  }
-  else if (action === 'doPush') pjPush(target.dataset.pjWs);
-});
-
-document.addEventListener('click', function(e) {
-  if (e.target.id === 'pj-wsSubmit' && selectedProject) pjCreateWs(selectedProject);
-  if (e.target.id === 'pj-wsCancel') {
-    var form = $('#pj-wsForm');
-    if (form) form.classList.remove('active');
-  }
+  if (action === 'select') renderProjectDetail(target.dataset.pjId);
+  else if (action === 'delete') pjDelete(target.dataset.pjId, target.dataset.pjName);
+  else if (action === 'cloneWs') pjCloneToWorkspace(target.dataset.pjId, target.dataset.pjName);
 });
 
 $('#pj-createName').addEventListener('keydown', function(e) {
@@ -1082,31 +1108,27 @@ $('#pj-createRepo').addEventListener('keydown', function(e) {
   if (e.key === 'Escape') { $('#pj-createForm').classList.remove('active'); }
 });
 
-/* ========== Users Tab ========== */
+/* ========== Workspaces Tab ========== */
 
-var selectedUser = null;
-
-function renderUsers() {
-  var container = $('#usr-list');
-  return api('/api/users').then(function(users) {
-    if (!users.length) {
-      container.innerHTML = '<div class="empty-state"><div class="icon">&#128100;</div><div>No users found</div></div>';
+function renderWorkspaces() {
+  var container = $('#ws-list');
+  return api('/api/workspaces').then(function(workspaces) {
+    if (!workspaces || !workspaces.length) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#128187;</div><div>Workspaces are empty</div></div>';
       return;
     }
-    var html = '<table class="data-table"><thead><tr><th>Name</th><th>Sandbox</th><th>Status</th><th>Domain</th><th>Actions</th></tr></thead><tbody>';
-    for (var i = 0; i < users.length; i++) {
-      var u = users[i];
-      var sel = selectedUser === u.name ? ' selected' : '';
-      var sbName = u.sandboxName || ('user-' + u.name);
-      var domain = u.domain || sbName;
-      html += '<tr class="' + sel + '">' +
-        '<td><span class="clickable" data-usr-action="select" data-usr-name="' + esc(u.name) + '">' + esc(u.name) + '</span></td>' +
-        '<td>' + esc(sbName) + '</td>' +
-        '<td>' + statusBadge(u.sandboxStatus || 'unknown') + '</td>' +
-        '<td><a href="https://' + esc(domain) + '.sandbox.19930810.xyz:8443" target="_blank">' + esc(domain) + '</a></td>' +
+    var html = '<table class="data-table"><thead><tr><th>Sandbox Name</th><th>User</th><th>Project</th><th>Branch</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    for (var i = 0; i < workspaces.length; i++) {
+      var ws = workspaces[i];
+      html += '<tr>' +
+        '<td><span class="clickable" data-ws-action="detail" data-ws-name="' + esc(ws.name) + '">' + esc(ws.name) + '</span></td>' +
+        '<td>' + esc(ws.user_name || '-') + '</td>' +
+        '<td>' + esc(ws.project_name || '-') + '</td>' +
+        '<td>' + esc(ws.branch || '-') + '</td>' +
+        '<td>' + statusBadge(ws.status || 'unknown') + '</td>' +
         '<td>' +
-        '<a href="' + esc(terminalUrl(sbName)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a> ' +
-        '<button class="btn btn-danger btn-sm" data-usr-action="destroy" data-usr-name="' + esc(u.name) + '">Destroy</button>' +
+        (ws.status === 'running' ? '<a href="' + esc(terminalUrl(ws.name)) + '" target="_blank" class="btn btn-ghost btn-sm" style="margin-right:4px">Terminal</a>' : '') +
+        '<button class="btn btn-danger btn-sm" data-ws-action="destroy" data-ws-name="' + esc(ws.name) + '">Destroy</button>' +
         '</td></tr>';
     }
     html += '</tbody></table>';
@@ -1116,16 +1138,195 @@ function renderUsers() {
   });
 }
 
-function renderUserDetail(userName) {
-  selectedUser = userName;
+function wsLoadDropdowns() {
+  return Promise.all([
+    api('/api/users').then(function(users) {
+      var sel = $('#ws-createUser');
+      if (!sel) return;
+      var html = '<option value="">Select User...</option>';
+      for (var i = 0; i < users.length; i++) {
+        html += '<option value="' + esc(users[i].id) + '">' + esc(users[i].name) + '</option>';
+      }
+      sel.innerHTML = html;
+    }),
+    api('/api/projects').then(function(projects) {
+      var sel = $('#ws-createProject');
+      if (!sel) return;
+      var html = '<option value="">Select Project...</option>';
+      for (var i = 0; i < projects.length; i++) {
+        html += '<option value="' + esc(projects[i].id) + '">' + esc(projects[i].name) + '</option>';
+      }
+      sel.innerHTML = html;
+    })
+  ]).catch(function() {});
+}
+
+function wsCreate() {
+  var userId = ($('#ws-createUser') || {}).value;
+  var projectId = ($('#ws-createProject') || {}).value;
+  var branch = ($('#ws-createBranch') || {}).value.trim() || 'main';
+  if (!userId) { toast('Please select a user', 'error'); return; }
+  if (!projectId) { toast('Please select a project', 'error'); return; }
+  var btn = $('#ws-btnCreateSubmit');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+  api('/api/workspaces', {
+    method: 'POST',
+    body: JSON.stringify({ userId: userId, projectId: projectId, branch: branch })
+  }).then(function() {
+    toast('Workspace created', 'success');
+    $('#ws-createForm').classList.remove('active');
+    renderWorkspaces();
+  }).catch(function(e) { toast(e.message, 'error'); })
+  .finally(function() { btn.disabled = false; btn.textContent = 'Create'; });
+}
+
+function wsDestroy(name) {
+  showConfirm('Destroy Workspace', 'Confirm destroy workspace "' + name + '"? This will delete the sandbox.', 'Destroy', 'btn-danger', function() {
+    api('/api/workspaces/' + encodeURIComponent(name), { method: 'DELETE' })
+      .then(function() {
+        toast('Workspace "' + name + '" destroyed', 'success');
+        renderWorkspaces();
+      }).catch(function(e) { toast(e.message, 'error'); });
+  });
+}
+
+function wsShowDetail(name) {
+  var container = $('#ws-detailContent');
+  $('#ws-detailTitle').textContent = name;
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+
+  api('/api/workspaces').then(function(workspaces) {
+    var ws = null;
+    for (var i = 0; i < workspaces.length; i++) {
+      if (workspaces[i].name === name) { ws = workspaces[i]; break; }
+    }
+    if (!ws) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>Workspace not found</div></div>';
+      return;
+    }
+
+    var html = '<div style="padding:16px">';
+    html += '<div style="background:rgba(15,52,96,0.15);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:16px">' +
+      '<h3 style="font-size:14px;margin-bottom:12px">Workspace Info</h3>' +
+      '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">' +
+      '<span style="color:var(--text-dim)">Sandbox Name:</span><span>' + esc(ws.name) + '</span>' +
+      '<span style="color:var(--text-dim)">User:</span><span>' + esc(ws.user_name || '-') + '</span>' +
+      '<span style="color:var(--text-dim)">Project:</span><span>' + esc(ws.project_name || '-') + '</span>' +
+      '<span style="color:var(--text-dim)">Branch:</span><span>' + esc(ws.branch || '-') + '</span>' +
+      '<span style="color:var(--text-dim)">Status:</span><span>' + statusBadge(ws.status || 'unknown') + '</span>' +
+      '</div></div>';
+
+    if (ws.status === 'running') {
+      html += '<div style="background:rgba(15,52,96,0.15);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:16px">' +
+        '<h3 style="font-size:14px;margin-bottom:12px">Quick Access</h3>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<a href="' + esc(terminalUrl(ws.name)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a>' +
+        '<a href="' + esc(appUrl(ws.name)) + '" target="_blank" class="btn btn-ghost btn-sm">App</a>' +
+        '</div></div>';
+    }
+
+    html += '<div style="background:rgba(15,52,96,0.15);border:1px solid var(--border);border-radius:6px;padding:16px">' +
+      '<h3 style="font-size:14px;margin-bottom:12px">Git Status</h3>' +
+      '<div id="ws-gitStatus"><div class="loading"><div class="spinner"></div>Loading...</div></div>' +
+      '</div>';
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    if (ws.status === 'running') {
+      api('/api/sandboxes/' + encodeURIComponent(ws.name) + '/git/status')
+        .then(function(git) {
+          var el = document.getElementById('ws-gitStatus');
+          if (!el) return;
+          var gHtml = '<div class="git-status"><span class="git-branch">&#9432; ' + esc(git.branch || 'unknown') + '</span>';
+          if (git.status && git.status.length) {
+            gHtml += '<div class="git-files">Changes:';
+            for (var m = 0; m < git.status.length; m++) {
+              gHtml += '<div>&#8226; ' + esc(git.status[m]) + '</div>';
+            }
+            gHtml += '</div>';
+          } else {
+            gHtml += ' <span style="color:var(--text-dim)">Clean</span>';
+          }
+          if (git.recentCommits && git.recentCommits.length) {
+            gHtml += '<div class="git-files" style="margin-top:6px">Recent Commits:';
+            for (var c = 0; c < git.recentCommits.length; c++) {
+              gHtml += '<div>' + esc(git.recentCommits[c]) + '</div>';
+            }
+            gHtml += '</div>';
+          }
+          gHtml += '</div>';
+          el.innerHTML = gHtml;
+        }).catch(function() {
+          var el = document.getElementById('ws-gitStatus');
+          if (el) el.innerHTML = '<span style="color:var(--text-dim)">Git status unavailable</span>';
+        });
+    } else {
+      var el = document.getElementById('ws-gitStatus');
+      if (el) el.innerHTML = '<span style="color:var(--text-dim)">Sandbox is not running</span>';
+    }
+  }).catch(function(e) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
+  });
+}
+
+$('#ws-btnCreate').addEventListener('click', function() {
+  var form = $('#ws-createForm');
+  form.classList.toggle('active');
+  if (form.classList.contains('active')) wsLoadDropdowns();
+});
+$('#ws-btnCreateCancel').addEventListener('click', function() {
+  $('#ws-createForm').classList.remove('active');
+});
+$('#ws-btnCreateSubmit').addEventListener('click', wsCreate);
+
+document.addEventListener('click', function(e) {
+  var target = e.target.closest('[data-ws-action]');
+  if (!target) return;
+  var action = target.dataset.wsAction;
+  if (action === 'destroy') wsDestroy(target.dataset.wsName);
+  else if (action === 'detail') wsShowDetail(target.dataset.wsName);
+});
+
+/* ========== Users Tab ========== */
+
+var selectedUser = null;
+
+function renderUsers() {
+  var container = $('#usr-list');
+  return api('/api/users').then(function(users) {
+    if (!users.length) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#128100;</div><div>Users are empty</div></div>';
+      return;
+    }
+    var html = '<table class="data-table"><thead><tr><th>Name</th><th>Email</th><th>Sandbox Count</th><th>Actions</th></tr></thead><tbody>';
+    for (var i = 0; i < users.length; i++) {
+      var u = users[i];
+      var sel = selectedUser === u.id ? ' selected' : '';
+      html += '<tr class="' + sel + '">' +
+        '<td><span class="clickable" data-usr-action="select" data-usr-id="' + esc(u.id) + '">' + esc(u.name) + '</span></td>' +
+        '<td>' + esc(u.email || '-') + '</td>' +
+        '<td>' + (u.sandboxCount || 0) + '</td>' +
+        '<td><button class="btn btn-danger btn-sm" data-usr-action="destroy" data-usr-id="' + esc(u.id) + '" data-usr-name="' + esc(u.name) + '">Delete</button></td>' +
+        '</tr>';
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }).catch(function(e) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
+  });
+}
+
+function renderUserDetail(userId) {
+  selectedUser = userId;
   var container = $('#usr-detailContent');
-  $('#usr-detailTitle').textContent = userName;
-  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading user...</div>';
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
 
   return api('/api/users').then(function(users) {
     var user = null;
     for (var i = 0; i < users.length; i++) {
-      if (users[i].name === userName) { user = users[i]; break; }
+      if (users[i].id === userId) { user = users[i]; break; }
     }
     if (!user) {
       container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>User not found</div></div>';
@@ -1133,9 +1334,10 @@ function renderUserDetail(userName) {
     }
 
     renderUsers();
+    $('#usr-detailTitle').textContent = user.name;
 
-    var sbName = user.sandboxName || ('user-' + userName);
-    var domain = user.domain || sbName;
+    var created = user.created_at ? new Date(user.created_at).toLocaleString() : '-';
+    var sandboxes = user.sandboxes || [];
 
     var html = '<div style="padding:16px">';
 
@@ -1143,88 +1345,72 @@ function renderUserDetail(userName) {
       '<h3 style="font-size:14px;margin-bottom:12px">User Info</h3>' +
       '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">' +
       '<span style="color:var(--text-dim)">Name:</span><span>' + esc(user.name) + '</span>' +
-      '<span style="color:var(--text-dim)">Sandbox:</span><span>' + esc(sbName) + '</span>' +
-      '<span style="color:var(--text-dim)">Status:</span><span>' + statusBadge(user.sandboxStatus || 'unknown') + '</span>' +
-      '<span style="color:var(--text-dim)">App URL:</span><span><a href="https://' + esc(domain) + '.sandbox.19930810.xyz:8443" target="_blank">https://' + esc(domain) + '.sandbox.19930810.xyz:8443</a></span>' +
-      '<span style="color:var(--text-dim)">Terminal:</span><span><a href="' + esc(terminalUrl(sbName)) + '" target="_blank">' + esc(terminalUrl(sbName)) + '</a></span>' +
+      '<span style="color:var(--text-dim)">ID:</span><span style="font-family:monospace;font-size:11px">' + esc(user.id) + '</span>' +
+      '<span style="color:var(--text-dim)">Email:</span><span>' + esc(user.email || '-') + '</span>' +
+      '<span style="color:var(--text-dim)">Created:</span><span>' + esc(created) + '</span>' +
       '</div></div>';
 
     html += '<div style="background:rgba(15,52,96,0.15);border:1px solid var(--border);border-radius:6px;padding:16px">' +
-      '<h3 style="font-size:14px;margin-bottom:12px">Workspace Files</h3>' +
-      '<div id="usr-files"><div class="loading"><div class="spinner"></div>Loading files...</div></div>' +
-      '</div>';
+      '<h3 style="font-size:14px;margin-bottom:12px">Associated Sandboxes (' + sandboxes.length + ')</h3>';
 
-    html += '</div>';
+    if (!sandboxes.length) {
+      html += '<div style="color:var(--text-dim);font-size:13px">No associated sandboxes</div>';
+    } else {
+      for (var j = 0; j < sandboxes.length; j++) {
+        var sb = sandboxes[j];
+        var sbDomain = sb.domain || sb.name;
+        html += '<div class="ws-card">' +
+          '<div class="ws-card-header">' +
+          '<span class="ws-card-name">' + esc(sb.name) + '</span>' +
+          '<div class="ws-card-actions">' +
+          statusBadge(sb.status || 'unknown') +
+          (sb.status === 'running' ? ' <a href="' + esc(terminalUrl(sb.name)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a>' : '') +
+          '</div></div>' +
+          '<div class="ws-card-info">' +
+          '<span>Domain: <a href="https://' + esc(sbDomain) + '.sandbox.19930810.xyz:8443" target="_blank">' + esc(sbDomain) + '</a></span>' +
+          '</div></div>';
+      }
+    }
+
+    html += '</div></div>';
     container.innerHTML = html;
-
-    loadUserFiles(sbName, '/');
   }).catch(function(e) {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
   });
 }
 
-function loadUserFiles(sbName, dirPath) {
-  var container = document.getElementById('usr-files');
-  if (!container) return;
-
-  api('/api/sandboxes/' + encodeURIComponent(sbName) + '/files?path=' + encodeURIComponent(dirPath))
-    .then(function(files) {
-      var html = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">Path: ' + esc(dirPath) + '</div>';
-      html += '<ul class="file-list" style="border:1px solid var(--border);border-radius:4px;overflow:hidden">';
-      if (dirPath !== '/') {
-        html += '<li class="file-item" data-usr-action="usrDir" data-usr-path="' + esc(dirPath.split('/').slice(0, -1).join('/') || '/') + '">' +
-          '<span class="file-icon">&#128193;</span><span class="file-name">..</span></li>';
-      }
-      for (var i = 0; i < files.length; i++) {
-        var f = files[i];
-        var icon = f.type === 'directory' ? '&#128193;' : '&#128196;';
-        var fpath = dirPath === '/' ? '/' + f.name : dirPath + '/' + f.name;
-        var action = f.type === 'directory' ? 'data-usr-action="usrDir" data-usr-path="' + esc(fpath) + '"' : 'style="cursor:default"';
-        html += '<li class="file-item" ' + action + '>' +
-          '<span class="file-icon">' + icon + '</span>' +
-          '<span class="file-name">' + esc(f.name) + '</span>' +
-          '<span class="file-size">' + (f.type === 'file' ? formatBytes(f.size) : '') + '</span>' +
-          '<span class="file-mtime">' + (f.mtime ? new Date(f.mtime).toLocaleString() : '') + '</span></li>';
-      }
-      if (!files.length) {
-        html += '<li class="file-item" style="cursor:default;color:var(--text-dim);justify-content:center">Empty directory</li>';
-      }
-      html += '</ul>';
-      container.innerHTML = html;
-    }).catch(function(e) {
-      container.innerHTML = '<div style="color:var(--text-dim);padding:8px">Could not load files: ' + esc(e.message) + '</div>';
-    });
-}
-
 function usrCreate() {
-  var input = $('#usr-createName');
-  var name = input.value.trim();
-  if (!name) return;
+  var nameInput = $('#usr-createName');
+  var emailInput = $('#usr-createEmail');
+  var name = nameInput.value.trim();
+  var email = emailInput.value.trim();
+  if (!name) { toast('Please enter a username', 'error'); return; }
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    toast('Invalid name. Use alphanumeric, hyphens, underscores.', 'error');
+    toast('Invalid username. Use alphanumeric characters, hyphens, underscores.', 'error');
     return;
   }
   var btn = $('#usr-btnCreateSubmit');
   btn.disabled = true;
   btn.textContent = 'Creating...';
-  api('/api/users', { method: 'POST', body: JSON.stringify({ name: name }) })
+  api('/api/users', { method: 'POST', body: JSON.stringify({ name: name, email: email }) })
     .then(function() {
       toast('User "' + name + '" created', 'success');
-      input.value = '';
+      nameInput.value = '';
+      emailInput.value = '';
       $('#usr-createForm').classList.remove('active');
       renderUsers();
     }).catch(function(e) { toast(e.message, 'error'); })
     .finally(function() { btn.disabled = false; btn.textContent = 'Create'; });
 }
 
-function usrDestroy(name) {
-  showConfirm('Destroy User', 'Destroy user "' + name + '"? Choose whether to keep sandbox data.', 'Destroy All', 'btn-danger', function() {
-    api('/api/users/' + encodeURIComponent(name), { method: 'DELETE', body: JSON.stringify({ keepData: false }) })
+function usrDestroy(userId, userName) {
+  showConfirm('Delete User', 'Confirm delete user "' + userName + '"? The associated sandbox will be destroyed.', 'Delete', 'btn-danger', function() {
+    api('/api/users/' + encodeURIComponent(userId), { method: 'DELETE' })
       .then(function() {
-        toast('User "' + name + '" destroyed', 'success');
-        if (selectedUser === name) {
+        toast('User "' + userName + '" deleted', 'success');
+        if (selectedUser === userId) {
           selectedUser = null;
-          $('#usr-detailTitle').textContent = 'User Detail';
+          $('#usr-detailTitle').textContent = 'User Details';
           $('#usr-detailContent').innerHTML = '<div class="empty-state"><div class="icon">&#128100;</div><div>Select a user to view details</div></div>';
         }
         renderUsers();
@@ -1240,29 +1426,24 @@ $('#usr-btnCreate').addEventListener('click', function() {
 $('#usr-btnCreateCancel').addEventListener('click', function() {
   $('#usr-createForm').classList.remove('active');
   $('#usr-createName').value = '';
+  $('#usr-createEmail').value = '';
 });
 $('#usr-btnCreateSubmit').addEventListener('click', usrCreate);
 $('#usr-createName').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') usrCreate();
   if (e.key === 'Escape') { $('#usr-createForm').classList.remove('active'); this.value = ''; }
 });
+$('#usr-createEmail').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') usrCreate();
+  if (e.key === 'Escape') { $('#usr-createForm').classList.remove('active'); }
+});
 
 document.addEventListener('click', function(e) {
   var target = e.target.closest('[data-usr-action]');
   if (!target) return;
   var action = target.dataset.usrAction;
-  if (action === 'select') renderUserDetail(target.dataset.usrName);
-  else if (action === 'destroy') usrDestroy(target.dataset.usrName);
-  else if (action === 'usrDir' && selectedUser) {
-    api('/api/users').then(function(users) {
-      for (var i = 0; i < users.length; i++) {
-        if (users[i].name === selectedUser) {
-          loadUserFiles(users[i].sandboxName || ('user-' + users[i].name), target.dataset.usrPath);
-          break;
-        }
-      }
-    });
-  }
+  if (action === 'select') renderUserDetail(target.dataset.usrId);
+  else if (action === 'destroy') usrDestroy(target.dataset.usrId, target.dataset.usrName);
 });
 
 /* ========== Agent Chat Tab ========== */
@@ -1273,7 +1454,9 @@ var agentStreaming = false;
 var agentCurrentStreamId = null;
 var agentModels = [];
 var agentSandboxes = [];
+var agentActiveSandbox = '';
 var chatPollTimer = null;
+var sandboxRefreshTimer = null;
 var wsConnected = false;
 
 function agentConnect() {
@@ -1426,16 +1609,84 @@ function agentHandleMessage(data) {
     agentStreaming = false;
     agentUpdateStreamingUI(false);
   } else if (type === 'tool_call') {
+    var toolInfo = data.tool || data;
     var parentMsg = agentFindMessage(agentCurrentStreamId) || agentMessages[agentMessages.length - 1];
     if (parentMsg) {
-      if (!parentMsg.tool_calls) parentMsg.tool_calls = [];
-      parentMsg.tool_calls.push({
-        name: data.name || data.tool_name || 'unknown',
-        arguments: data.arguments || data.args || '',
-        result: data.result || ''
+      if (typeof parentMsg.content === 'string') {
+        parentMsg.content = parentMsg.content ? [{type: 'text', text: parentMsg.content}] : [];
+      }
+      parentMsg.content.push({
+        type: 'toolCall',
+        name: toolInfo.name || 'unknown',
+        id: toolInfo.id || ('tc-' + Date.now()),
+        arguments: toolInfo.arguments || {}
       });
       agentRenderMessages();
     }
+  } else if (type === 'tool_execution') {
+    agentHandleToolExecution(data);
+  }
+}
+
+function agentHandleToolExecution(data) {
+  var status = data.status;
+  var toolCallId = data.toolCallId || data.tool_call_id;
+  var toolName = data.toolName || data.tool_name || 'tool';
+
+  if (status === 'start') {
+    var streamMsg = agentFindMessage(agentCurrentStreamId);
+    if (streamMsg && Array.isArray(streamMsg.content)) {
+      for (var i = streamMsg.content.length - 1; i >= 0; i--) {
+        var block = streamMsg.content[i];
+        if (block.type === 'toolCall' && (block.id === toolCallId || (!block.id && block.name === toolName))) {
+          block._running = true;
+          block._output = '';
+          break;
+        }
+      }
+    }
+    agentRenderMessages();
+  } else if (status === 'update') {
+    var streamMsg = agentFindMessage(agentCurrentStreamId);
+    if (streamMsg && Array.isArray(streamMsg.content)) {
+      for (var i = streamMsg.content.length - 1; i >= 0; i--) {
+        var block = streamMsg.content[i];
+        if (block.type === 'toolCall' && block._running) {
+          block._output = (block._output || '') + (data.output || '');
+          var el = document.getElementById('tool-live-' + block.id);
+          if (el) {
+            el.textContent = block._output;
+            el.scrollTop = el.scrollHeight;
+          } else {
+            agentRenderMessages();
+          }
+          return;
+        }
+      }
+    }
+    agentRenderMessages();
+  } else if (status === 'end') {
+    var streamMsg = agentFindMessage(agentCurrentStreamId);
+    if (streamMsg && Array.isArray(streamMsg.content)) {
+      for (var i = streamMsg.content.length - 1; i >= 0; i--) {
+        var block = streamMsg.content[i];
+        if (block.type === 'toolCall' && block._running) {
+          block._running = false;
+          break;
+        }
+      }
+    }
+    var resultContent = data.result ? [{type: 'text', text: typeof data.result === 'string' ? data.result : JSON.stringify(data.result)}] : [{type: 'text', text: '(no output)'}];
+    agentMessages.push({
+      id: 'tr-' + Date.now(),
+      role: 'toolResult',
+      content: resultContent,
+      toolCallId: toolCallId,
+      toolName: toolName,
+      isError: data.isError || false,
+      timestamp: new Date().toISOString()
+    });
+    agentRenderMessages();
   }
 }
 
@@ -1491,6 +1742,12 @@ function agentPopulateModels() {
 function agentLoadSandboxes() {
   api('/api/sandboxes').then(function(boxes) {
     agentSandboxes = boxes || [];
+    var runningCount = 0;
+    for (var r = 0; r < agentSandboxes.length; r++) {
+      if (agentSandboxes[r].status === 'running') runningCount++;
+    }
+    var countEl = $('#agent-sandbox-count');
+    if (countEl) countEl.textContent = '(' + runningCount + ' running)';
     var selects = [$('#agent-sandbox-select'), $('#agent-toolbar-sandbox')];
     for (var s = 0; s < selects.length; s++) {
       if (!selects[s]) continue;
@@ -1498,14 +1755,71 @@ function agentLoadSandboxes() {
       var html = '<option value="">Select sandbox...</option>';
       for (var i = 0; i < agentSandboxes.length; i++) {
         var b = agentSandboxes[i];
-        if (b.status === 'running') {
-          html += '<option value="' + esc(b.name) + '">' + esc(b.name) + '</option>';
-        }
+        var ip = b.domain || b.port || '';
+        var label = b.name + (ip ? ' (' + ip + ')' : '');
+        html += '<option value="' + esc(b.name) + '">' + esc(label) + '</option>';
       }
       selects[s].innerHTML = html;
       selects[s].value = current;
     }
+    agentUpdateActiveIndicator();
   }).catch(function() {});
+}
+
+function agentUpdateActiveIndicator() {
+  var indicator = $('#agent-active-sandbox');
+  var toolbarIndicator = $('#agent-toolbar-sandbox-indicator');
+  if (!agentActiveSandbox) {
+    if (indicator) indicator.innerHTML = '<span class="indicator-empty">No sandbox selected</span>';
+    if (toolbarIndicator) toolbarIndicator.innerHTML = '<span class="indicator-empty">No sandbox</span>';
+    return;
+  }
+  var sb = null;
+  for (var i = 0; i < agentSandboxes.length; i++) {
+    if (agentSandboxes[i].name === agentActiveSandbox) { sb = agentSandboxes[i]; break; }
+  }
+  var statusClass = 'unknown';
+  var ip = '';
+  if (sb) {
+    statusClass = sb.status === 'running' ? 'running' : 'stopped';
+    ip = sb.domain || sb.port || '';
+  }
+  var html = '<span class="indicator-dot ' + statusClass + '"></span>' +
+    '<span class="indicator-name">' + esc(agentActiveSandbox) + '</span>' +
+    (ip ? '<span class="indicator-ip">' + esc(ip) + '</span>' : '');
+  if (indicator) indicator.innerHTML = html;
+  if (toolbarIndicator) toolbarIndicator.innerHTML = html;
+}
+
+function agentLoadActiveSandbox() {
+  api('/api/chat/sandbox').then(function(d) {
+    agentActiveSandbox = d.sandbox || '';
+    if (agentActiveSandbox) {
+      var sidebar = $('#agent-sandbox-select');
+      var toolbar = $('#agent-toolbar-sandbox');
+      if (sidebar) sidebar.value = agentActiveSandbox;
+      if (toolbar) toolbar.value = agentActiveSandbox;
+    }
+    agentUpdateActiveIndicator();
+  }).catch(function() {});
+}
+
+function agentSwitchSandbox(name) {
+  if (!name) return;
+  agentActiveSandbox = name;
+  api('/api/chat/sandbox', { method: 'POST', body: JSON.stringify({ name: name }) })
+    .then(function() {
+      toast('Active sandbox: ' + name, 'success');
+      agentUpdateActiveIndicator();
+    })
+    .catch(function(e) { toast('Switch failed: ' + e.message, 'error'); });
+}
+
+function startSandboxRefresh() {
+  if (sandboxRefreshTimer) return;
+  sandboxRefreshTimer = setInterval(function() {
+    if (activeTab === 'agent') agentLoadSandboxes();
+  }, 10000);
 }
 
 function agentGetModel() {
@@ -1574,6 +1888,108 @@ function agentUpdateStreamingUI(streaming) {
   if (agentStop) agentStop.style.display = streaming ? '' : 'none';
 }
 
+function formatToolArgs(name, args) {
+  if (!args) return '';
+  if (typeof args === 'string') {
+    try { args = JSON.parse(args); } catch(e) { return args; }
+  }
+  if (name === 'bash' && args.command) return args.command;
+  if (name === 'read' && args.filePath) return args.filePath;
+  if (name === 'write' && args.filePath) return args.filePath;
+  if (name === 'edit' && args.filePath) return args.filePath;
+  if (name === 'glob' && args.pattern) return args.pattern;
+  if (name === 'grep' && args.pattern) return args.pattern;
+  return JSON.stringify(args, null, 2);
+}
+
+function renderThinkingBlock(text, msgIdx, blockIdx) {
+  var id = 'thinking-' + msgIdx + '-' + blockIdx;
+  var preview = (text || '').substring(0, 80).replace(/\n/g, ' ');
+  if ((text || '').length > 80) preview += '...';
+  var html = '<div class="thinking-block" data-thinking-toggle="' + id + '">';
+  html += '<span>&#128172;</span><span>Thinking...</span>';
+  html += '</div>';
+  html += '<div class="thinking-block-content" id="' + id + '">' + esc(text) + '</div>';
+  return html;
+}
+
+function renderToolCallBlock(content, msgIdx, blockIdx) {
+  var id = 'tc-' + msgIdx + '-' + blockIdx;
+  var name = content.name || 'unknown';
+  var args = content.arguments || {};
+  var argsStr = formatToolArgs(name, args);
+  var isRunning = content._running || false;
+  var html = '<div class="tool-call-block">';
+  html += '<div class="tool-call-header" data-tool-toggle="' + id + '">';
+  html += '<span class="tool-icon">&#128295;</span>';
+  html += '<span class="tool-name">' + esc(name) + '</span>';
+  if (isRunning) {
+    html += '<span class="tool-spinner">&#9881;</span>';
+    html += '<span style="font-size:11px;color:var(--text-dim)">running...</span>';
+  }
+  html += '<span class="tool-toggle collapsed">&#9660;</span>';
+  html += '</div>';
+  html += '<div class="tool-call-body" id="' + id + '">';
+  if (argsStr) {
+    html += '<div class="tool-call-args">' + esc(argsStr) + '</div>';
+  }
+  if (isRunning && content._output) {
+    html += '<div class="tool-live-output" id="tool-live-' + esc(content.id || '') + '">' + esc(content._output) + '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderToolResultBlock(msg, msgIdx) {
+  var isError = msg.isError || false;
+  var toolName = msg.toolName || 'tool';
+  var outputText = '';
+  if (Array.isArray(msg.content)) {
+    for (var i = 0; i < msg.content.length; i++) {
+      if (msg.content[i].type === 'text') outputText += msg.content[i].text;
+    }
+  } else if (typeof msg.content === 'string') {
+    outputText = msg.content;
+  }
+  var isShort = outputText.split('\n').length <= 5 && outputText.length <= 300;
+  var id = 'tr-' + msgIdx;
+  var html = '<div class="tool-result-block">';
+  html += '<div class="tool-result-header ' + (isError ? 'error' : 'success') + '" data-result-toggle="' + id + '">';
+  html += '<span>' + (isError ? '&#10060;' : '&#2705;') + '</span>';
+  html += '<span>' + esc(toolName) + ' (' + (isError ? 'error' : 'completed') + ')</span>';
+  html += '<span style="flex:1"></span>';
+  html += '<span style="font-size:10px;color:var(--text-dim)">' + (isError ? '&#9650;' : '&#9660;') + '</span>';
+  html += '</div>';
+  html += '<div class="tool-result-output-wrap' + (isShort ? ' expanded' : '') + '" id="' + id + '">';
+  html += '<div class="tool-result-output">' + esc(outputText || '(no output)') + '</div>';
+  html += '</div></div>';
+  return html;
+}
+
+function renderContentBlocks(msg, msgIdx) {
+  var content = msg.content;
+  if (typeof content === 'string') {
+    return agentRenderMarkdown(content || '');
+  }
+  if (!Array.isArray(content)) {
+    return agentRenderMarkdown(String(content || ''));
+  }
+  var html = '';
+  var blockIdx = 0;
+  for (var j = 0; j < content.length; j++) {
+    var block = content[j];
+    if (!block) continue;
+    if (block.type === 'thinking') {
+      html += renderThinkingBlock(block.text || '', msgIdx, blockIdx++);
+    } else if (block.type === 'toolCall') {
+      html += renderToolCallBlock(block, msgIdx, blockIdx++);
+    } else if (block.type === 'text') {
+      html += agentRenderMarkdown(block.text || '');
+    }
+  }
+  return html;
+}
+
 function agentRenderMessages() {
   var container = $('#chat-messages');
   if (!container) return;
@@ -1581,18 +1997,27 @@ function agentRenderMessages() {
   for (var i = 0; i < agentMessages.length; i++) {
     var msg = agentMessages[i];
     var isUser = msg.role === 'user';
+    var isToolResult = msg.role === 'toolResult';
+    if (isToolResult) {
+      html += '<div class="chat-msg assistant">';
+      html += '<div class="chat-msg-role">Tool Result</div>';
+      html += '<div class="chat-msg-bubble">';
+      html += renderToolResultBlock(msg, i);
+      html += '</div></div>';
+      continue;
+    }
     html += '<div class="chat-msg ' + msg.role + '">';
     html += '<div class="chat-msg-role">' + (isUser ? 'You' : 'Assistant') + '</div>';
     html += '<div class="chat-msg-bubble">';
     if (isUser) {
-      html += esc(msg.content);
+      html += esc(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content));
     } else {
-      html += agentRenderMarkdown(msg.content || '');
+      html += renderContentBlocks(msg, i);
       if (msg.tool_calls && msg.tool_calls.length) {
         for (var t = 0; t < msg.tool_calls.length; t++) {
           var tc = msg.tool_calls[t];
           html += '<div class="tool-call-card">';
-          html += '<div class="tool-call-header" data-tool-toggle="' + i + '-' + t + '">';
+          html += '<div class="tool-call-header" data-tool-toggle="legacy-' + i + '-' + t + '">';
           html += '<span class="tool-icon">&#9881;</span>';
           html += '<span class="tool-name">' + esc(tc.name) + '</span>';
           html += '<span class="tool-toggle">&#9660;</span>';
@@ -1601,13 +2026,12 @@ function agentRenderMessages() {
           if (tc.arguments) toolBody += 'Args: ' + tc.arguments + '\n';
           if (tc.result) toolBody += 'Result: ' + (typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result));
           if (!toolBody) toolBody = '(no details)';
-          html += '<div class="tool-call-body" id="tool-body-' + i + '-' + t + '">' + esc(toolBody) + '</div>';
+          html += '<div class="tool-call-body expanded" id="tool-body-legacy-' + i + '-' + t + '">' + esc(toolBody) + '</div>';
           html += '</div>';
         }
       }
     }
-    html += '</div>';
-    html += '</div>';
+    html += '</div></div>';
   }
   if (agentStreaming) {
     html += '<div class="typing-indicator"><span></span><span></span><span></span></div>';
@@ -1714,21 +2138,107 @@ $('#agent-toolbar-model').addEventListener('change', function() {
 $('#agent-sandbox-select').addEventListener('change', function() {
   var tb = $('#agent-toolbar-sandbox');
   if (tb) tb.value = this.value;
+  if (this.value) agentSwitchSandbox(this.value);
 });
 $('#agent-toolbar-sandbox').addEventListener('change', function() {
   var sb = $('#agent-sandbox-select');
   if (sb) sb.value = this.value;
+  if (this.value) agentSwitchSandbox(this.value);
 });
 
 document.addEventListener('click', function(e) {
   var header = e.target.closest('[data-tool-toggle]');
-  if (!header) return;
-  var key = header.dataset.toolToggle;
-  var body = document.getElementById('tool-body-' + key);
-  var toggle = header.querySelector('.tool-toggle');
-  if (body) body.classList.toggle('collapsed');
-  if (toggle) toggle.classList.toggle('collapsed');
+  if (header) {
+    var key = header.dataset.toolToggle;
+    var body = document.getElementById(key);
+    var toggle = header.querySelector('.tool-toggle');
+    if (body) body.classList.toggle('expanded');
+    if (toggle) toggle.classList.toggle('collapsed');
+    return;
+  }
+  var thinkingHeader = e.target.closest('[data-thinking-toggle]');
+  if (thinkingHeader) {
+    var thinkId = thinkingHeader.dataset.thinkingToggle;
+    var thinkBody = document.getElementById(thinkId);
+    if (thinkBody) thinkBody.classList.toggle('expanded');
+    return;
+  }
+  var resultHeader = e.target.closest('[data-result-toggle]');
+  if (resultHeader) {
+    var resultId = resultHeader.dataset.resultToggle;
+    var resultBody = document.getElementById(resultId);
+    if (resultBody) resultBody.classList.toggle('expanded');
+    return;
+  }
 });
+
+/* ========== Git Config (Settings Tab) ========== */
+
+function renderGitConfig() {
+  var container = $('#gitconfig-content');
+  return api('/api/git-config').then(function(config) {
+    var html = '<div style="padding:16px">';
+
+    html += '<div style="background:rgba(15,52,96,0.15);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:16px">' +
+      '<h3 style="font-size:14px;margin-bottom:12px">Current Configuration</h3>' +
+      '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">' +
+      '<span style="color:var(--text-dim)">Configuration Status:</span><span>' +
+      (config.configured
+        ? '<span class="badge badge-green">Configured</span>'
+        : '<span class="badge badge-red">Not Configured</span>') +
+      '</span>';
+
+    if (config.configured) {
+      html += '<span style="color:var(--text-dim)">Provider URL:</span><span>' + esc(config.providerUrl || '-') + '</span>' +
+        '<span style="color:var(--text-dim)">Token User:</span><span>' + esc(config.tokenUser || 'oauth2') + '</span>' +
+        '<span style="color:var(--text-dim)">Token:</span><span style="font-family:monospace">' + esc(config.tokenMasked || '****') + '</span>';
+    }
+
+    html += '</div></div>';
+
+    html += '<div style="background:rgba(15,52,96,0.15);border:1px solid var(--border);border-radius:6px;padding:16px">' +
+      '<h3 style="font-size:14px;margin-bottom:12px">' + (config.configured ? 'Update' : 'Configure') + ' Git Token</h3>' +
+      '<div style="display:flex;flex-direction:column;gap:10px">' +
+      '<div>' +
+      '<label style="display:block;font-size:12px;color:var(--text-dim);margin-bottom:4px">Git Provider URL (e.g. github.com)</label>' +
+      '<input type="text" id="git-providerUrl" value="' + esc(config.providerUrl || '') + '" placeholder="github.com" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none" />' +
+      '</div>' +
+      '<div>' +
+      '<label style="display:block;font-size:12px;color:var(--text-dim);margin-bottom:4px">Token</label>' +
+      '<input type="password" id="git-token" placeholder="Enter Git Token" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none" />' +
+      '</div>' +
+      '<div>' +
+      '<label style="display:block;font-size:12px;color:var(--text-dim);margin-bottom:4px">Token User (default: oauth2)</label>' +
+      '<input type="text" id="git-tokenUser" value="' + esc(config.tokenUser || 'oauth2') + '" placeholder="oauth2" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none" />' +
+      '</div>' +
+      '<button class="btn btn-primary" id="git-saveBtn" style="align-self:flex-start">Save Configuration</button>' +
+      '</div></div>';
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    document.getElementById('git-saveBtn').addEventListener('click', function() {
+      var providerUrl = (document.getElementById('git-providerUrl') || {}).value || '';
+      var token = (document.getElementById('git-token') || {}).value || '';
+      var tokenUser = (document.getElementById('git-tokenUser') || {}).value || 'oauth2';
+      if (!providerUrl) { toast('Please enter Provider URL', 'error'); return; }
+      if (!token) { toast('Please enter Token', 'error'); return; }
+      var btn = document.getElementById('git-saveBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      api('/api/git-config', {
+        method: 'POST',
+        body: JSON.stringify({ providerUrl: providerUrl, token: token, tokenUser: tokenUser })
+      }).then(function() {
+        toast('Git configuration saved', 'success');
+        renderGitConfig();
+      }).catch(function(e) { toast(e.message, 'error'); })
+      .finally(function() { if (btn) { btn.disabled = false; btn.textContent = 'Save Configuration'; } });
+    });
+  }).catch(function(e) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
+  });
+}
 
 /* ========== Auto Refresh ========== */
 
@@ -1740,6 +2250,8 @@ function refresh() {
     if (selectedSandbox && !sbCurrentFile) sbLoadFiles(selectedSandbox, sbCurrentPath);
   } else if (activeTab === 'projects') {
     renderProjects();
+  } else if (activeTab === 'workspaces') {
+    renderWorkspaces();
   } else if (activeTab === 'users') {
     renderUsers();
   } else if (activeTab === 'agent') {

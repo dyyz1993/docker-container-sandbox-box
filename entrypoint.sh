@@ -40,12 +40,13 @@ if [ -f "$SANDBOX_DB" ]; then
         mkdir -p "${sb_dir}/home/workspace" 2>/dev/null || true
         mount --bind "${sb_dir}/workspace" "${sb_dir}/home/workspace" 2>/dev/null || true
 
-        unshare --net --pid --mount --fork bash -c "
+        unshare --net --pid --mount --uts --fork bash -c "
             mount -t proc proc /proc 2>/dev/null || true
             mount --make-private /
             mount --bind ${sb_dir}/home /root
             mkdir -p /workspace 2>/dev/null || true
             mount --bind /root/workspace /workspace 2>/dev/null || true
+            hostname ${name} 2>/dev/null || true
             export HOME=/root
             export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             exec sleep infinity

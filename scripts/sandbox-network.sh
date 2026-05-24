@@ -28,6 +28,7 @@ cmd_create() {
     nsenter -t "${ns_pid}" -n -- sh -c "echo 'nameserver 8.8.8.8' > /etc/resolv.conf && echo 'nameserver 114.114.114.114' >> /etc/resolv.conf"
 
     iptables -t nat -A POSTROUTING -s "${NET_PREFIX}.${id}.0/24" -j MASQUERADE 2>/dev/null || true
+    iptables -I FORWARD -s "${NET_PREFIX}.${id}.0/24" -d "${NET_PREFIX}.0.0/16" ! -d "${NET_PREFIX}.${id}.0/24" -j DROP 2>/dev/null || true
     sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
 
     log "network created: id=${id} host=${host_ip} ns=${ns_ip} pid=${ns_pid}"
@@ -40,6 +41,7 @@ cmd_destroy() {
 
     ip link del "${veth_host}" 2>/dev/null || true
     iptables -t nat -D POSTROUTING -s "${NET_PREFIX}.${id}.0/24" -j MASQUERADE 2>/dev/null || true
+    iptables -D FORWARD -s "${NET_PREFIX}.${id}.0/24" -d "${NET_PREFIX}.0.0/16" ! -d "${NET_PREFIX}.${id}.0/24" -j DROP 2>/dev/null || true
 
     log "network destroyed: id=${id}"
 }

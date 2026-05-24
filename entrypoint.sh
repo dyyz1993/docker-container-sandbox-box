@@ -32,6 +32,7 @@ if [ -f "$SANDBOX_DB" ]; then
 
         sb_dir="${SANDBOX_DATA_DIR}/${name}"
         [ ! -d "$sb_dir" ] && continue
+        echo "${name}" > "${sb_dir}/hostname" 2>/dev/null || true
 
         escaped_name=$(db_escape "$name")
 
@@ -83,7 +84,7 @@ if [ -f "$SANDBOX_DB" ]; then
         log "http preview server restored in sandbox '${name}'"
 
         nsenter -t "$sb_pid" -m -n -p -u -- \
-            bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; git config --global user.email 'sandbox@sandbox-box.local'; git config --global user.name 'Sandbox Box'" < /dev/null &>/dev/null &
+            bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; git config -f /root/.gitconfig user.email 'sandbox@sandbox-box.local'; git config -f /root/.gitconfig user.name 'Sandbox Box'; echo '${name}' > /etc/hostname" 2>/dev/null
         log "dev environment restored in sandbox '${name}'"
 
         if [ -f /root/data/git-token.conf ]; then

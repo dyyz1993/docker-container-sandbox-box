@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+LOCK_FILE="/tmp/sandbox-create.lock"
+exec 200>"$LOCK_FILE"
+flock -w 60 200 || { echo "Error: failed to acquire sandbox-create lock within 60s" >&2; exit 1; }
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/sandbox-lib.sh"
 
@@ -32,6 +36,7 @@ fi
 
 sb_dir="$(sandbox_dir "$name")"
 mkdir -p "${sb_dir}/home" "${sb_dir}/workspace" "${sb_dir}/.npm-global"
+echo "${name}" > "${sb_dir}/hostname"
 
 if [ -n "$mount_path" ] && [ -d "$mount_path" ]; then
     mount --bind "$mount_path" "${sb_dir}/workspace" 2>/dev/null || true
@@ -51,7 +56,7 @@ unshare --net --pid --mount --uts --fork bash -c "
     export HOME=/root
     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     exec sleep infinity
-" &
+" 0</dev/null 1>/dev/null 2>&1 &
 sb_pid=$!
 
 sleep 0.3
@@ -75,29 +80,29 @@ db_query "INSERT OR REPLACE INTO sandboxes (name, pid, status, network_id, domai
 bash "${SCRIPT_DIR}/sandbox-nginx.sh" add "$name" "$ns_ip" "$port"
 
 nsenter -t "$sb_pid" -m -n -p -u -- \
-    setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; ttyd -p 7681 -W bash" < /dev/null &>/dev/null &
+    setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; ttyd -p 7681 -W bash" 0</dev/null 1>/dev/null 2>&1 &
 ttyd_pid=$!
 echo "$ttyd_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
 log "ttyd started in sandbox '${name}' on port 7681"
 
 # Start HTTP preview server inside sandbox
 nsenter -t "$sb_pid" -m -n -p -u -- \
-    setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace && python3 -m http.server ${SANDBOX_DEFAULT_PORT:-3100}" < /dev/null &>/dev/null &
+    setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace && python3 -m http.server ${SANDBOX_DEFAULT_PORT:-3100}" 0</dev/null 1>/dev/null 2>&1 &
 log "http preview server started in sandbox '${name}' on port ${SANDBOX_DEFAULT_PORT:-3100}"
 
 # Initialize dev environment inside sandbox
 nsenter -t "$sb_pid" -m -n -p -u -- \
-    bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; git config --global user.email 'sandbox@sandbox-box.local'; git config --global user.name 'Sandbox Box'; mkdir -p /workspace" < /dev/null &>/dev/null &
+    bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; git config -f /root/.gitconfig user.email 'sandbox@sandbox-box.local'; git config -f /root/.gitconfig user.name 'Sandbox Box'; mkdir -p /workspace; echo '${name}' > /etc/hostname" 2>/dev/null
 log "dev environment initialized in sandbox '${name}'"
 
 if [ -f /root/data/git-token.conf ]; then
     source /root/data/git-token.conf
     if [ -n "$GIT_TOKEN" ] && [ -n "$GIT_PROVIDER_URL" ]; then
         nsenter -t "$sb_pid" -m -n -p -u -- \
-            bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; 
+            bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin/bin; 
             git config --global credential.helper 'store --file /root/.git-credentials';
             echo \"https://\${GIT_TOKEN_USER:-oauth2}:\${GIT_TOKEN}@\${GIT_PROVIDER_URL}\" > /root/.git-credentials;
-            chmod 600 /root/.git-credentials" < /dev/null &>/dev/null &
+            chmod 600 /root/.git-credentials" 0</dev/null 1>/dev/null 2>&1 &
         log "git credentials configured in sandbox '${name}'"
     fi
 fi
@@ -115,7 +120,7 @@ if [ -f "$start_sh" ]; then
     while IFS= read -r svc_cmd; do
         [ -z "$svc_cmd" ] && continue
         nsenter -t "$sb_pid" -m -n -p -u -- \
-            setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace 2>/dev/null || cd /root; ${svc_cmd}" < /dev/null &>/dev/null &
+            setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace 2>/dev/null || cd /root; ${svc_cmd}" 0</dev/null 1>/dev/null 2>&1 &
         svc_pid=$!
         echo "$svc_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
         sleep 0.1

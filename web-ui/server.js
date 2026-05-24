@@ -759,16 +759,44 @@ async function handleCreateUser(req, res) {
 
     const sandboxName = `user-${name}`;
     const existingList = execSync(`${SANDBOX_CMD} list 2>&1`, { encoding: 'utf-8', timeout: 30000 });
+    let alreadyRunning = false;
     const alreadyExists = existingList.split('\n').some(line => {
       const parts = line.trim().split(/\s+/);
-      return parts[0] === sandboxName;
+      if (parts[0] === sandboxName) {
+        alreadyRunning = parts[1] === 'running';
+        return true;
+      }
+      return false;
     });
-    if (!alreadyExists) {
+    if (alreadyExists && !alreadyRunning) {
       try {
-        execSync(`${SANDBOX_CMD} create ${sandboxName} 2>&1`, { encoding: 'utf-8', timeout: 60000 });
+        execSync(`${SANDBOX_CMD} resume ${sandboxName} 2>&1`, { encoding: 'utf-8', timeout: 180000 });
+      } catch (_) {
+        try {
+          execSync(`${SANDBOX_CMD} create ${sandboxName} 2>&1`, { encoding: 'utf-8', timeout: 180000 });
+        } catch (e) {
+          return sendError(res, 500, `Failed to create/resume sandbox for user: ${e.message}`);
+        }
+      }
+    } else if (!alreadyExists) {
+      try {
+        execSync(`${SANDBOX_CMD} create ${sandboxName} 2>&1`, { encoding: 'utf-8', timeout: 180000 });
       } catch (e) {
         return sendError(res, 500, `Failed to create sandbox for user: ${e.message}`);
       }
+    }
+    if (!alreadyExists || !alreadyRunning) {
+      execSync('sleep 1', { timeout: 5000 });
+      try {
+        const verifyList = execSync(`${SANDBOX_CMD} list 2>&1`, { encoding: 'utf-8', timeout: 10000 });
+        const isRunning = verifyList.split('\n').some(line => {
+          const parts = line.trim().split(/\s+/);
+          return parts[0] === sandboxName && parts[1] === 'running';
+        });
+        if (!isRunning) {
+          return sendError(res, 500, `Sandbox '${sandboxName}' created but not in running state`);
+        }
+      } catch (_) {}
     }
 
     fs.writeFileSync('/root/data/active-sandbox', sandboxName, 'utf-8');
@@ -835,8 +863,18 @@ async function handleDeleteUser(req, res, id) {
 // ============================================================
 
 async function handleCreateWorkspace(req, res) {
+  let finished = false;
+  const timer = setTimeout(() => {
+    if (!finished) {
+      finished = true;
+      sendError(res, 504, 'Workspace creation timed out (120s)');
+    }
+  }, 120000);
+
   try {
     if (!db) {
+      clearTimeout(timer);
+      finished = true;
       return sendError(res, 501, 'Workspaces require SQLite database');
     }
     const body = await readBody(req);
@@ -849,17 +887,23 @@ async function handleCreateWorkspace(req, res) {
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
     if (!user || !project) {
+      clearTimeout(timer);
+      finished = true;
       return sendError(res, 404, 'User or project not found');
     }
 
     const name = sandboxName || `${user.name}-${project.name}-${branch}`.substring(0, 64);
     if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      clearTimeout(timer);
+      finished = true;
       return sendError(res, 400, 'Invalid sandbox name generated');
     }
 
     const safeUrl = sanitizeForShell(project.repo_url || '');
     const safeBranch = sanitizeForShell(branch);
     if (!safeUrl) {
+      clearTimeout(timer);
+      finished = true;
       return sendError(res, 400, 'Project has no repository URL');
     }
 
@@ -920,10 +964,16 @@ async function handleCreateWorkspace(req, res) {
        WHERE s.name = ?`
     ).get(name);
 
+    clearTimeout(timer);
+    finished = true;
     sendJSON(res, 200, { workspace });
   } catch (e) {
     const msg = (e.stderr && typeof e.stderr === 'string') ? e.stderr.trim() : (e.message || 'Failed to create workspace');
-    sendError(res, 500, msg);
+    clearTimeout(timer);
+    if (!finished) {
+      finished = true;
+      sendError(res, 500, msg);
+    }
   }
 }
 
@@ -1509,6 +1559,30 @@ async function handleRequest(req, res) {
 
       if (method === 'POST' && subPath === 'git/checkout') {
         return await handleGitCheckout(req, res, name);
+      }
+
+      if (method === 'POST' && subPath === 'exec') {
+        try {
+          if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+            return sendError(res, 400, 'Invalid sandbox name');
+          }
+          const body = await readBody(req);
+          const command = (body.command || '').trim();
+          if (!command) {
+            return sendError(res, 400, 'command is required');
+          }
+          const safeCmd = sanitizeForShell(command);
+          const output = execSync(
+            `${SANDBOX_CMD} ${name} bash -c '${safeCmd}' 2>&1`,
+            { encoding: 'utf-8', timeout: 30000 }
+          );
+          sendJSON(res, 200, { exitCode: 0, output: output.trim() });
+        } catch (e) {
+          const output = (e.stdout && typeof e.stdout === 'string') ? e.stdout.trim() : '';
+          const exitCode = e.status || 1;
+          sendJSON(res, 200, { exitCode, output: output || (e.message || 'Command failed') });
+        }
+        return;
       }
     }
 

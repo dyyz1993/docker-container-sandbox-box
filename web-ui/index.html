@@ -986,9 +986,16 @@ function pjCreateWs(projectName) {
   var wsName = nameInput.value.trim();
   var branch = branchInput.value.trim();
   if (!wsName) { toast('Workspace name required', 'error'); return; }
-  api('/api/sandboxes/clone', {
-    method: 'POST',
-    body: JSON.stringify({ name: wsName, project: projectName, branch: branch || 'main' })
+  api('/api/projects').then(function(projects) {
+    var project = null;
+    for (var i = 0; i < projects.length; i++) {
+      if (projects[i].name === projectName) { project = projects[i]; break; }
+    }
+    if (!project || !project.repoUrl) { toast('Project repo URL not found', 'error'); return; }
+    return api('/api/sandboxes/clone', {
+      method: 'POST',
+      body: JSON.stringify({ name: wsName, repoUrl: project.repoUrl, branch: branch || 'main' })
+    });
   }).then(function() {
     toast('Workspace "' + wsName + '" created', 'success');
     nameInput.value = '';

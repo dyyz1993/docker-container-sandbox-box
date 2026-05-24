@@ -494,11 +494,19 @@ async function handleCloneSandbox(req, res) {
   try {
     const body = await readBody(req);
     const name = (body.name || '').trim();
-    const repoUrl = (body.repoUrl || '').trim();
+    let repoUrl = (body.repoUrl || '').trim();
     const branch = (body.branch || '').trim();
+    const project = (body.project || '').trim();
 
     if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
       return sendError(res, 400, 'Invalid sandbox name. Use alphanumeric, hyphens, underscores only.');
+    }
+    if (!repoUrl && project) {
+      const projects = readJsonFile(PROJECTS_FILE);
+      const found = projects.find(p => p.name === project || p.id === project);
+      if (found && found.repoUrl) {
+        repoUrl = found.repoUrl;
+      }
     }
     if (!repoUrl) {
       return sendError(res, 400, 'Repository URL is required');

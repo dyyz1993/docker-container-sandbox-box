@@ -18,29 +18,43 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'sandbox2024';
 const AUTH_SECRET = process.env.AUTH_SECRET || 'sandbox-box-secret-key';
 const TOKEN_EXPIRY = 86400;
 
+const activeTokens = new Map();
+
 function generateToken() {
-  const payload = JSON.stringify({
-    password: ADMIN_PASSWORD,
-    exp: Date.now() + TOKEN_EXPIRY * 1000
-  });
-  return crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('hex');
+  const token = crypto.randomBytes(32).toString('hex');
+  activeTokens.set(token, Date.now() + TOKEN_EXPIRY * 1000);
+  return token;
 }
 
 function validateToken(token) {
   if (!token) return false;
-  const expectedToken = generateToken();
-  return token === expectedToken;
+  const expiry = activeTokens.get(token);
+  if (!expiry) return false;
+  if (Date.now() > expiry) {
+    activeTokens.delete(token);
+    return false;
+  }
+  return true;
 }
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [tok, exp] of activeTokens) {
+    if (now > exp) activeTokens.delete(tok);
+  }
+}, 3600000).unref();
+
 function authMiddleware(req, res) {
-  if (req.url === '/api/auth/login' || req.url === '/api/health') {
+  const parsed = new URL(req.url, 'http://localhost');
+  const pathname = parsed.pathname;
+  if (pathname === '/api/auth/login' || pathname === '/api/health') {
     return true;
   }
-  if (!req.url.startsWith('/api/')) {
+  if (!pathname.startsWith('/api/')) {
     return true;
   }
   const token = (req.headers.authorization && req.headers.authorization.replace('Bearer ', '')) ||
-    new URL(req.url, 'http://localhost').searchParams.get('token');
+    parsed.searchParams.get('token');
   if (!validateToken(token)) {
     sendJSON(res, 401, { error: 'Unauthorized', message: 'Invalid or missing token' });
     return false;

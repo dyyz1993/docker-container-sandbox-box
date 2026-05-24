@@ -758,6 +758,34 @@ function flattenContent(content) {
   return String(content);
 }
 
+function extractToolData(content) {
+  var toolCalls = [];
+  var textParts = [];
+  if (!content) return { text: '', toolCalls: toolCalls };
+  if (typeof content === 'string') return { text: content, toolCalls: toolCalls };
+  if (Array.isArray(content)) {
+    for (var i = 0; i < content.length; i++) {
+      var block = content[i];
+      if (block.type === 'text' && block.text) {
+        textParts.push(block.text);
+      } else if (block.type === 'tool_use') {
+        toolCalls.push({
+          name: block.name || 'unknown',
+          arguments: block.input ? JSON.stringify(block.input, null, 2) : '',
+          result: ''
+        });
+      } else if (block.type === 'tool_result') {
+        toolCalls.push({
+          name: 'tool_result',
+          arguments: '',
+          result: typeof block.content === 'string' ? block.content : JSON.stringify(block.content || '')
+        });
+      }
+    }
+  }
+  return { text: textParts.join('\n'), toolCalls: toolCalls };
+}
+
 function handleRpcEvent(event) {
   if (event.type === 'ready') {
     rpcReady = true;
@@ -779,12 +807,29 @@ function handleRpcEvent(event) {
         id: 'msg-' + Date.now(),
         role: 'assistant',
         content: '',
+        tool_calls: [],
         timestamp: new Date().toISOString()
       };
     }
     const aev = event.assistantMessageEvent;
-    if (aev && aev.type === 'text_delta') {
-      currentStreamMsg.content += aev.delta || '';
+    if (aev) {
+      if (aev.type === 'text_delta') {
+        currentStreamMsg.content += aev.delta || '';
+      } else if (aev.type === 'tool_use') {
+        const tcEntry = {
+          name: aev.name || 'unknown',
+          arguments: aev.input ? JSON.stringify(aev.input, null, 2) : '',
+          result: ''
+        };
+        if (!currentStreamMsg.tool_calls) currentStreamMsg.tool_calls = [];
+        currentStreamMsg.tool_calls.push(tcEntry);
+        broadcastToChat({
+          type: 'tool_call',
+          name: tcEntry.name,
+          arguments: aev.input ? JSON.stringify(aev.input) : '',
+          result: ''
+        });
+      }
     }
     broadcastToChat({ type: 'stream', data: event });
   } else if (event.type === 'message_end') {
@@ -792,14 +837,45 @@ function handleRpcEvent(event) {
   } else if (event.type === 'agent_end') {
     currentStreamMsg = null;
     if (event.messages && event.messages.length > 0) {
-      for (const m of event.messages) {
+      var pendingToolCalls = [];
+      for (var mi = 0; mi < event.messages.length; mi++) {
+        var m = event.messages[mi];
         if (m.role === 'assistant') {
-          messageHistory.push({
-            id: m.entryId || ('msg-' + Date.now()),
+          var extracted = extractToolData(m.content);
+          var msgEntry = {
+            id: m.entryId || ('msg-' + Date.now() + '-' + mi),
             role: 'assistant',
-            content: flattenContent(m.content),
+            content: extracted.text || flattenContent(m.content),
             timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : new Date().toISOString()
-          });
+          };
+          if (extracted.toolCalls.length > 0) {
+            msgEntry.tool_calls = extracted.toolCalls;
+            pendingToolCalls = extracted.toolCalls;
+          } else {
+            pendingToolCalls = [];
+          }
+          messageHistory.push(msgEntry);
+        } else if (m.role === 'user' && pendingToolCalls.length > 0) {
+          var resultExtracted = extractToolData(m.content);
+          for (var ri = 0; ri < resultExtracted.toolCalls.length && ri < pendingToolCalls.length; ri++) {
+            pendingToolCalls[ri].result = resultExtracted.toolCalls[ri].result;
+          }
+          pendingToolCalls = [];
+        } else if (m.role === 'tool' || m.role === 'tool_result') {
+          var toolResult = '';
+          if (typeof m.content === 'string') {
+            toolResult = m.content;
+          } else if (Array.isArray(m.content)) {
+            toolResult = m.content.map(function(c) {
+              if (typeof c === 'string') return c;
+              if (c.text) return c.text;
+              return JSON.stringify(c);
+            }).join('\n');
+          }
+          if (pendingToolCalls.length > 0 && toolResult) {
+            pendingToolCalls[0].result = toolResult;
+            pendingToolCalls.shift();
+          }
         }
       }
     }

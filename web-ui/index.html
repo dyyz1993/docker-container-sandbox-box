@@ -1352,6 +1352,12 @@ function startPolling() {
         }
       }
     }).catch(function() {});
+    fetch('/api/chat/models').then(function(r) { return r.json(); }).then(function(d) {
+      if (d.models && d.models.length > 0) {
+        agentModels = d.models;
+        agentPopulateModels();
+      }
+    }).catch(function() {});
   }, 2000);
 }
 
@@ -1463,9 +1469,19 @@ function agentPopulateModels() {
     var html = '<option value="">Select model...</option>';
     for (var i = 0; i < agentModels.length; i++) {
       var m = agentModels[i];
-      var modelId = typeof m === 'string' ? m : (m.id || m.name || '');
-      var modelName = typeof m === 'string' ? m : (m.name || m.id || '');
-      html += '<option value="' + esc(modelId) + '">' + esc(modelName) + '</option>';
+      var modelId, modelName, provider;
+      if (typeof m === 'string') {
+        modelId = m;
+        modelName = m;
+        provider = '';
+      } else {
+        modelId = m.id || m.name || '';
+        modelName = m.name || m.id || '';
+        provider = m.provider || '';
+      }
+      var label = provider ? provider + '/' + modelName : modelName;
+      var value = provider ? provider + ':' + modelId : modelId;
+      html += '<option value="' + esc(value) + '">' + esc(label) + '</option>';
     }
     selects[s].innerHTML = html;
     selects[s].value = current;

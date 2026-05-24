@@ -955,6 +955,46 @@ async function handleRequest(req, res) {
     }
     if (method === 'GET' && pathname === '/api/chat/status') { sendJSON(res, 200, { running: !!rpcProcess, ready: rpcReady }); return; }
     if (method === 'GET' && pathname === '/api/chat/messages') { sendJSON(res, 200, { messages: messageHistory }); return; }
+    if (method === 'GET' && pathname === '/api/chat/models') {
+      if (!rpcReady || !rpcProcess) {
+        sendJSON(res, 200, { models: [] });
+        return;
+      }
+      sendRpcCommand({ type: 'get_available_models' }).then(function(result) {
+        var models = [];
+        if (result) {
+          models = result.models || (result.data && result.data.models) || [];
+        }
+        sendJSON(res, 200, { models: models });
+      }).catch(function(e) {
+        sendJSON(res, 200, { models: [] });
+      });
+      return;
+    }
+
+    if (method === 'GET' && pathname === '/api/chat/state') {
+      if (!rpcReady || !rpcProcess) {
+        sendJSON(res, 200, { running: false, ready: false });
+        return;
+      }
+      sendRpcCommand({ type: 'get_state' }).then(function(result) {
+        var state = (result && result.data) || result || {};
+        sendJSON(res, 200, Object.assign({ running: true, ready: true }, state));
+      }).catch(function(e) {
+        sendJSON(res, 200, { running: true, ready: true, error: e.message });
+      });
+      return;
+    }
+    if (method === 'POST' && pathname === '/api/chat/set_model') {
+      readBody(req).then(async function(body) {
+        try {
+          if (!rpcReady) { sendError(res, 400, 'RPC not ready'); return; }
+          var result = await sendRpcCommand({ type: 'set_model', provider: body.provider, modelId: body.modelId });
+          sendJSON(res, 200, { success: true, result: result });
+        } catch (e) { sendError(res, 500, e.message); }
+      });
+      return;
+    }
 
     // --- Static fallback ---
     return serveStatic(req, res);
@@ -1075,8 +1115,9 @@ async function handleChatMessage(ws, msg) {
         if (res?.messages) { messageHistory = res.messages; ws.send(JSON.stringify({ type: 'messages', messages: messageHistory })); }
         break;
       case 'get_models':
-        const models = await sendRpcCommand({ type: 'get_available_models' });
-        ws.send(JSON.stringify({ type: 'models', models: models?.models || [] }));
+        const modelsRes = await sendRpcCommand({ type: 'get_available_models' });
+        const modelList = modelsRes ? (modelsRes.models || (modelsRes.data && modelsRes.data.models) || []) : [];
+        ws.send(JSON.stringify({ type: 'models', models: modelList }));
         break;
       case 'set_model':
         await sendRpcCommand({ type: 'set_model', provider: msg.provider, modelId: msg.modelId });

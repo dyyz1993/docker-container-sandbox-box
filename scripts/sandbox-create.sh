@@ -47,6 +47,7 @@ ln -sf /root/workspace "${sb_dir}/home/.workspace_link" 2>/dev/null || true
 mount --bind "${sb_dir}/workspace" "${sb_dir}/home/workspace" 2>/dev/null || true
 
 unshare --net --pid --mount --uts --fork bash -c "
+    exec 200>&-
     mount -t proc proc /proc 2>/dev/null || true
     mount --make-private /
     mount --bind ${sb_dir}/home /root
@@ -76,6 +77,10 @@ escaped_mount=$(db_escape "$mount_path")
 
 db_query "INSERT OR REPLACE INTO sandboxes (name, pid, status, network_id, domain, port, mount_path)
     VALUES ('${escaped_name}', ${sb_pid}, 'running', ${network_id}, '${escaped_domain}', ${port}, '${escaped_mount}');"
+
+# Release lock AFTER network_id allocation and DB insert to prevent race conditions
+flock -u 200
+exec 200>&-
 
 bash "${SCRIPT_DIR}/sandbox-nginx.sh" add "$name" "$ns_ip" "$port"
 

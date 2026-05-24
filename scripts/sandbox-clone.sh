@@ -24,11 +24,8 @@ fi
 
 validate_name "$name"
 
-# Clone repo command (used in both new and existing sandbox paths)
-clone_cmd="git clone ${branch:+-b ${branch}} '${repo_url}' /workspace"
-if [ -n "$branch" ]; then
-    clone_cmd="git clone -b ${branch} '${repo_url}' /workspace"
-fi
+clone_cmd="git clone '${repo_url}' /workspace"
+clone_with_branch="git clone -b '${branch}' '${repo_url}' /workspace 2>/dev/null || git clone '${repo_url}' /workspace"
 
 if sandbox_is_running "$name"; then
     echo "Sandbox '${name}' is already running, executing clone in existing sandbox..."
@@ -36,7 +33,7 @@ if sandbox_is_running "$name"; then
     sb_pid=$(db_query "SELECT pid FROM sandboxes WHERE name='${escaped_name}';" 2>/dev/null)
 
     nsenter -t "$sb_pid" -m -n -p -u -- \
-        bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace 2>/dev/null || true; rm -rf /workspace/.* /workspace/* 2>/dev/null; ${clone_cmd}; cd /workspace && git checkout ${branch:+${branch}} 2>/dev/null || true" < /dev/null 2>&1
+        bash -c "exec 200>&-; export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace 2>/dev/null || true; rm -rf /workspace/.* /workspace/* 2>/dev/null; ${clone_with_branch:-$clone_cmd}; cd /workspace && git checkout ${branch:+-b ${branch}} 2>/dev/null || true" < /dev/null 2>&1
 
     ns_ip=$(db_query "SELECT '' || (((network_id-1)/254)) || '.' || (((network_id-1)%254)+1) || '.2' FROM sandboxes WHERE name='${escaped_name}';" 2>/dev/null || echo "")
     domain="$(sandbox_domain "$name")"
@@ -75,8 +72,8 @@ unshare --net --pid --mount --uts --fork bash -c "
     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     git config --global user.email 'sandbox@sandbox-box.local'
     git config --global user.name 'Sandbox Box'
-    exec sleep infinity
-" &
+    exec 200>&-; exec sleep infinity
+" 0</dev/null 1>/dev/null 2>&1 &
 sb_pid=$!
 
 sleep 0.5
@@ -106,18 +103,21 @@ if [ -d /sys/fs/cgroup ]; then
 fi
 
 nsenter -t "$sb_pid" -m -n -p -u -- \
-    setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; ttyd -p 7681 -W bash" < /dev/null &>/dev/null &
+    setsid bash -c "exec 200>&-; export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; ttyd -p 7681 -W bash" < /dev/null &>/dev/null &
 log "ttyd started in sandbox '${name}' on port 7681"
 
 nsenter -t "$sb_pid" -m -n -p -u -- \
-    setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace && python3 -m http.server ${SANDBOX_DEFAULT_PORT:-3100}" < /dev/null &>/dev/null &
+    setsid bash -c "exec 200>&-; export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd /workspace && python3 -m http.server ${SANDBOX_DEFAULT_PORT:-3100}" < /dev/null &>/dev/null &
 log "http preview server started in sandbox '${name}' on port ${SANDBOX_DEFAULT_PORT:-3100}"
+
+nsenter -t "$sb_pid" -m -n -p -u -- \
+    bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; echo '${name}' > /etc/hostname" 2>/dev/null
 
 sleep 0.5
 
 log "Cloning repo into sandbox '${name}'..."
 nsenter -t "$sb_pid" -m -n -p -u -- \
-    bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; rm -rf /workspace/.* /workspace/* 2>/dev/null; ${clone_cmd} && cd /workspace && git checkout ${branch:+${branch}} 2>/dev/null || true" < /dev/null 2>&1
+    bash -c "exec 200>&-; export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin/bin; rm -rf /workspace/.* /workspace/* 2>/dev/null; ${clone_with_branch:-$clone_cmd} && cd /workspace && git checkout ${branch:+-b ${branch}} 2>/dev/null || true" < /dev/null 2>&1
 log "Clone complete for '${name}'"
 
 echo "$name" > /root/data/active-sandbox

@@ -131,21 +131,47 @@ Point a wildcard domain (`*.sandbox.example.com`) to your host, then configure N
 
 ## pi Coding Agent Integration
 
-The `pi-extension/` directory contains a pi coding agent extension that routes all bash commands through sandbox-box.
+The `pi-extension/` directory contains a complete pi coding agent extension that proxies all 7 built-in tools (bash, read, write, edit, grep, find, ls) to a remote sandbox via SSH, using the `ToolOperationsProvider` architecture.
 
-### Setup
+### How It Works
+
+```
+Local Mac                          Remote Sandbox (192.168.0.29:2201)
+┌──────────────┐                   ┌──────────────┐
+│  pi agent    │                   │  sandbox-box  │
+│              │  ── SSH ──→       │  container    │
+│  MCP tools   │  (bash/read/      │              │
+│  (local)     │   write/edit/     │  pi-{project} │
+│              │   grep/find/ls)   │  (namespace)  │
+└──────────────┘                   └──────────────┘
+```
+
+**Architecture:**
+- **bash** → `registerTool` override (needed because bash-ext overrides built-in bash)
+- **read/write/edit/grep/find/ls** → `setToolOperationsProvider` injects remote operations
+- **MCP tools** → stay local (external APIs, local data)
+- **Switching** → `pi.setToolOperationsProvider(provider)` to activate remote, `undefined` to revert
+
+### Prerequisites
+
+1. **pi fork** `@dyyz1993/pi-coding-agent` >= 0.75.0 with `ToolOperationsProvider` support
+2. **sandbox-box** container running and accessible via SSH
+3. **SSH key** configured in the container (`SSH_PUBLIC_KEY` env var)
+
+### Installation
 
 ```bash
-# Install extension to project
+# Option 1: Project-level (recommended)
+mkdir -p .pi/extensions
 cp -r pi-extension/ .pi/extensions/sandbox-box/
 
-# Or install globally
+# Option 2: Global
 cp -r pi-extension/ ~/.pi/agent/extensions/sandbox-box/
 ```
 
 ### Configuration
 
-Create `.pi/sandbox-box.json` in your project:
+Create `.pi/sandbox-box.json` in your project root:
 
 ```json
 {
@@ -157,22 +183,68 @@ Create `.pi/sandbox-box.json` in your project:
 }
 ```
 
+| Field | Default | Description |
+|-------|---------|-------------|
+| `mode` | `"local"` | Startup mode: `"local"` or `"remote"` |
+| `host` | `"192.168.0.29"` | sandbox-box container SSH address |
+| `port` | `2201` | SSH port |
+| `sandboxPrefix` | `"pi-"` | Sandbox name prefix, final name = prefix + project dir name |
+| `destroyOnExit` | `false` | Destroy sandbox when pi exits |
+
 ### Usage
 
 ```bash
-# Start pi with extension (local mode)
+# Start pi with extension (local mode by default)
 pi -e ./pi-extension
 
-# Start in remote mode
+# Start directly in remote mode via flag
 pi -e ./pi-extension --sandbox-box
 
-# Runtime switching
+# Runtime switching inside pi session
 /sandbox-box          # show status
-/sandbox-box local    # switch to local
-/sandbox-box remote   # switch to remote
+/sandbox-box remote   # switch to remote sandbox mode
+/sandbox-box local    # switch back to local mode
 ```
 
-When in remote mode, all bash commands from pi are forwarded to a sandbox via SSH. The extension auto-creates a sandbox per project using the configured prefix.
+### What Happens in Remote Mode
+
+1. On `session_start`, the extension:
+   - Tests SSH connectivity to sandbox-box
+   - Auto-creates a sandbox named `{prefix}{projectDir}` (e.g., `pi-myapp`)
+   - Injects `ToolOperationsProvider` for 6 file tools + `registerTool` for bash
+
+2. All built-in tool calls are transparently proxied:
+   - `bash` → SSH → `sandbox <name> bash -c '<cmd>'`
+   - `read` → SSH → `sandbox <name> cat '<path>'`
+   - `write` → SSH → `sandbox <name> tee '<path>'` (via stdin)
+   - `edit` → read + write combined
+   - `grep` → SSH → `sandbox <name> rg --json '<pattern>' '<path>'`
+   - `find` → SSH → `sandbox <name> find '<cwd>' -name '<pattern>'`
+   - `ls` → SSH → `sandbox <name> ls/stat/test`
+
+3. MCP tools continue to run locally (they access external APIs, not sandbox files)
+
+### Verified Features
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| bash remote execution | ✅ | `hostname` returns sandbox hostname |
+| read remote files | ✅ | `cat` via SSH |
+| write remote files | ✅ | `tee` via SSH stdin |
+| edit remote files | ✅ | read + sed + write |
+| grep remote search | ✅ | `rg --json` via SSH |
+| find remote files | ✅ | `find -name` via SSH |
+| ls remote listing | ✅ | `ls`/`stat`/`test` via SSH |
+| Sandbox auto-create | ✅ | Created on session start if not exists |
+| Mode switching | ✅ | `/sandbox-box remote/local` at runtime |
+| Session recovery | ✅ | Reconnects on next pi start |
+
+### Notes
+
+1. **Sandbox working directory is `/workspace`** — remote mode cwd auto-switches to `/workspace`
+2. **MCP tools run locally** — knowledge base, web search, etc. use local data
+3. **Sandbox data persists** — `destroy` keeps data, `resume` restores it
+4. **Path escaping** — single quotes + backslash escaping for SSH commands
 
 ## Development
 

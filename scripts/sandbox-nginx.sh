@@ -12,6 +12,8 @@ cmd_add() {
     local port="${3:-${SANDBOX_DEFAULT_PORT}}"
     local domain
     domain="$(sandbox_domain "$name")"
+    local suffix="${SANDBOX_SUFFIX}"
+    local base_domain="${SANDBOX_DOMAIN}"
 
     cat > "${CONF_DIR}/sandbox-${name}.conf" << EOF
 server {
@@ -31,10 +33,25 @@ server {
         proxy_send_timeout 86400s;
     }
 }
+
+server {
+    listen 80;
+    server_name terminal-${name}.${suffix}.${base_domain};
+
+    location / {
+        proxy_pass http://${sandbox_ip}:7681;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400s;
+    }
+}
 EOF
 
     nginx -t -q 2>/dev/null && nginx -s reload 2>/dev/null
-    log "nginx route added: ${domain} -> ${sandbox_ip}:${port}"
+    log "nginx route added: ${domain} -> ${sandbox_ip}:${port}, terminal -> ${sandbox_ip}:7681"
 }
 
 cmd_remove() {

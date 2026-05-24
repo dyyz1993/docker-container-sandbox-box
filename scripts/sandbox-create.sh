@@ -73,6 +73,12 @@ db_query "INSERT OR REPLACE INTO sandboxes (name, pid, status, network_id, domai
 
 bash "${SCRIPT_DIR}/sandbox-nginx.sh" add "$name" "$ns_ip" "$port"
 
+nsenter -t "$sb_pid" -m -n -p -u -- \
+    setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; ttyd -p 7681 -W bash" < /dev/null &>/dev/null &
+ttyd_pid=$!
+echo "$ttyd_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
+log "ttyd started in sandbox '${name}' on port 7681"
+
 if [ -d /sys/fs/cgroup ]; then
     mkdir -p "/sys/fs/cgroup/sandbox-${name}" 2>/dev/null \
     && echo 536870912 > "/sys/fs/cgroup/sandbox-${name}/memory.max" 2>/dev/null \

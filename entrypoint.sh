@@ -71,6 +71,11 @@ if [ -f "$SANDBOX_DB" ]; then
             echo "$sb_pid" > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
         fi
 
+        nsenter -t "$sb_pid" -m -n -p -u -- \
+            setsid bash -c "export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; ttyd -p 7681 -W bash" < /dev/null &>/dev/null &
+        echo $! > "/sys/fs/cgroup/sandbox-${name}/cgroup.procs" 2>/dev/null || true
+        log "ttyd started in recovered sandbox '${name}'"
+
         start_sh="${sb_dir}/start.sh"
         if [ -f "$start_sh" ]; then
             log "resuming services for sandbox '${name}'"

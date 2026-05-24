@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sandbox Box</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#1a1a2e;--card:#16213e;--accent:#0f3460;--highlight:#e94560;--text:#e0e0e0;--text-dim:#8892a4;--green:#4caf50;--red:#f44336;--blue:#2196f3;--border:#1e3a5f;--radius:8px;--shadow:0 2px 8px rgba(0,0,0,0.3)}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+
+.header{background:var(--card);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:100}
+.header h1{font-size:20px;font-weight:700;color:var(--highlight);white-space:nowrap}
+.stats-bar{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text-dim)}
+.stats-bar .stat{display:flex;align-items:center;gap:4px}
+.stats-bar .stat-value{color:var(--text);font-weight:600}
+.stats-bar .stat-value.warn{color:#ff9800}
+.stats-bar .stat-value.crit{color:var(--red)}
+
+.main{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;height:calc(100vh - 56px);overflow:hidden}
+@media(max-width:900px){.main{grid-template-columns:1fr;height:auto;overflow:auto}}
+
+.panel{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.panel-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-header h2{font-size:15px;font-weight:600}
+.panel-body{flex:1;overflow-y:auto;padding:0}
+
+.btn{display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-weight:500;transition:all 0.15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#1a4a80}
+.btn-danger{background:var(--highlight);color:#fff}
+.btn-danger:hover{background:#c73550}
+.btn-sm{padding:3px 8px;font-size:11px}
+.btn-ghost{background:transparent;color:var(--text-dim);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--accent);color:#fff}
+
+.create-form{display:none;align-items:center;gap:8px;padding:10px 16px;background:rgba(15,52,96,0.3);border-bottom:1px solid var(--border)}
+.create-form.active{display:flex}
+.create-form input{flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none}
+.create-form input:focus{border-color:var(--highlight)}
+
+.sandbox-table{width:100%;border-collapse:collapse}
+.sandbox-table th{text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;color:var(--text-dim);font-weight:600;background:rgba(15,52,96,0.2);border-bottom:1px solid var(--border);position:sticky;top:0}
+.sandbox-table td{padding:8px 12px;border-bottom:1px solid rgba(30,58,95,0.5);font-size:13px;vertical-align:middle}
+.sandbox-table tr:hover td{background:rgba(15,52,96,0.15)}
+.sandbox-table tr.selected td{background:rgba(233,69,96,0.1);border-bottom-color:var(--highlight)}
+
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-green{background:rgba(76,175,80,0.2);color:var(--green)}
+.badge-red{background:rgba(244,67,54,0.2);color:var(--red)}
+.badge-gray{background:rgba(136,146,164,0.2);color:var(--text-dim)}
+
+.clickable-name{cursor:pointer;color:var(--blue)}
+.clickable-name:hover{text-decoration:underline}
+
+.empty-state{padding:40px;text-align:center;color:var(--text-dim)}
+.empty-state .icon{font-size:40px;margin-bottom:8px}
+
+.sandbox-stats{padding:12px 16px;display:flex;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:rgba(15,52,96,0.15);font-size:12px}
+.sandbox-stats .s-stat{display:flex;flex-direction:column;gap:2px}
+.sandbox-stats .s-stat-label{color:var(--text-dim);font-size:10px;text-transform:uppercase}
+.sandbox-stats .s-stat-value{font-weight:600;font-size:14px}
+
+.breadcrumb{padding:8px 16px;display:flex;gap:4px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border);font-size:12px}
+.breadcrumb span{cursor:pointer;color:var(--text-dim)}
+.breadcrumb span:hover{color:var(--blue)}
+.breadcrumb span.current{color:var(--text);font-weight:600;cursor:default}
+
+.file-list{list-style:none}
+.file-item{display:flex;align-items:center;padding:7px 16px;cursor:pointer;border-bottom:1px solid rgba(30,58,95,0.3);transition:background 0.1s;gap:10px}
+.file-item:hover{background:rgba(15,52,96,0.2)}
+.file-icon{width:20px;text-align:center;font-size:14px;flex-shrink:0}
+.file-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-size{color:var(--text-dim);font-size:11px;flex-shrink:0;width:70px;text-align:right}
+.file-mtime{color:var(--text-dim);font-size:11px;flex-shrink:0;width:130px;text-align:right}
+
+.file-viewer{display:flex;flex-direction:column;height:100%}
+.file-toolbar{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.file-toolbar .file-title{flex:1;font-size:12px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.code-view{flex:1;overflow:auto;padding:0;background:rgba(26,26,46,0.5);position:relative}
+.code-view pre{margin:0;padding:12px;font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;line-height:1.6;white-space:pre;tab-size:4}
+.code-line{display:block}
+.code-line .ln{display:inline-block;width:45px;color:var(--text-dim);text-align:right;margin-right:16px;user-select:none;font-size:11px}
+.edit-area{flex:1;width:100%;border:none;background:rgba(26,26,46,0.5);color:var(--text);font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;line-height:1.6;padding:12px;resize:none;outline:none;tab-size:4}
+
+.toast-container{position:fixed;top:70px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:10px 16px;border-radius:6px;color:#fff;font-size:13px;animation:toastIn 0.3s ease;max-width:360px;box-shadow:var(--shadow)}
+.toast-success{background:var(--green)}
+.toast-error{background:var(--red)}
+.toast-info{background:var(--accent)}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text-dim)}
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--highlight);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;flex:1;max-width:60px}
+.progress-fill{height:100%;border-radius:2px;transition:width 0.5s ease}
+.progress-fill.green{background:var(--green)}
+.progress-fill.yellow{background:#ff9800}
+.progress-fill.red{background:var(--red)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Sandbox Box</h1>
+  <div class="stats-bar" id="statsBar">
+    <div class="stat">CPU <span class="stat-value" id="statCpu">-</span></div>
+    <div class="stat">MEM <span class="stat-value" id="statMem">-</span></div>
+    <div class="stat">DISK <span class="stat-value" id="statDisk">-</span></div>
+    <div class="stat">UP <span class="stat-value" id="statUptime">-</span></div>
+    <div class="stat">BOXES <span class="stat-value" id="statCount">-</span></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="panel" id="leftPanel">
+    <div class="panel-header">
+      <h2>Sandboxes</h2>
+      <button class="btn btn-primary btn-sm" id="btnCreate">+ Create</button>
+    </div>
+    <div class="create-form" id="createForm">
+      <input type="text" id="createName" placeholder="Sandbox name (alphanumeric, hyphens)" maxlength="50" />
+      <button class="btn btn-primary btn-sm" id="btnCreateSubmit">Create</button>
+      <button class="btn btn-ghost btn-sm" id="btnCreateCancel">Cancel</button>
+    </div>
+    <div class="panel-body" id="sandboxList">
+      <div class="loading"><div class="spinner"></div>Loading...</div>
+    </div>
+  </div>
+
+  <div class="panel" id="rightPanel">
+    <div class="panel-header">
+      <h2 id="rightTitle">Select a Sandbox</h2>
+    </div>
+    <div class="panel-body" id="rightContent">
+      <div class="empty-state">
+        <div class="icon">&#128230;</div>
+        <div>Click a sandbox name to browse files</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+const $ = (s, p) => (p || document).querySelector(s);
+const $$ = (s, p) => (p || document).querySelectorAll(s);
+
+function esc(s) {
+  if (s == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function formatBytes(b) {
+  if (!b || b === 0) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(b) / Math.log(1024));
+  return (b / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + u[i];
+}
+
+function formatUptime(s) {
+  if (!s) return '-';
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const parts = [];
+  if (d > 0) parts.push(d + 'd');
+  if (h > 0) parts.push(h + 'h');
+  parts.push(m + 'm');
+  return parts.join(' ');
+}
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.textContent = msg;
+  $('#toastContainer').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3500);
+}
+
+async function api(url, opts = {}) {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+let selectedSandbox = null;
+let currentPath = '/';
+let currentFile = null;
+let editMode = false;
+let originalContent = '';
+
+function getTerminalUrl(name) {
+  const host = window.location.hostname;
+  const domain = host.replace('admin.sandbox', 'terminal-' + name + '.sandbox');
+  return 'http://' + domain;
+}
+
+function statusBadge(status) {
+  if (status === 'running') return '<span class="badge badge-green">running</span>';
+  if (status === 'stopped') return '<span class="badge badge-red">stopped</span>';
+  return '<span class="badge badge-gray">' + esc(status) + '</span>';
+}
+
+function cpuClass(p) { return p > 80 ? 'crit' : p > 50 ? 'warn' : ''; }
+function memClass(p) { return p > 90 ? 'crit' : p > 70 ? 'warn' : ''; }
+
+async function loadStats() {
+  try {
+    const s = await api('/api/stats');
+    $('#statCpu').textContent = s.cpu.percent + '%';
+    $('#statCpu').className = 'stat-value ' + cpuClass(s.cpu.percent);
+    $('#statMem').textContent = s.memory.percent + '%';
+    $('#statMem').className = 'stat-value ' + memClass(s.memory.percent);
+    $('#statDisk').textContent = s.disk.percent + '%';
+    $('#statDisk').className = 'stat-value ' + (s.disk.percent > 90 ? 'crit' : s.disk.percent > 70 ? 'warn' : '');
+    $('#statUptime').textContent = formatUptime(s.uptime);
+    $('#statCount').textContent = s.sandboxCount;
+  } catch (e) { /* silent */ }
+}
+
+async function loadSandboxes() {
+  const container = $('#sandboxList');
+  try {
+    const boxes = await api('/api/sandboxes');
+    if (!boxes.length) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#128230;</div><div>No sandboxes found</div></div>';
+      return;
+    }
+    let html = '<table class="sandbox-table"><thead><tr><th>Name</th><th>Status</th><th>Port</th><th>PID</th><th>Actions</th></tr></thead><tbody>';
+    for (const b of boxes) {
+      const sel = selectedSandbox === b.name ? ' selected' : '';
+      html += '<tr class="' + sel + '" data-name="' + esc(b.name) + '">';
+      html += '<td><span class="clickable-name" data-action="select" data-name="' + esc(b.name) + '">' + esc(b.name) + '</span></td>';
+      html += '<td>' + statusBadge(b.status) + '</td>';
+      html += '<td>' + esc(b.port || '-') + '</td>';
+      html += '<td>' + esc(b.pid || '-') + '</td>';
+      html += '<td>';
+      if (b.status === 'running') {
+        html += '<a href="' + esc(getTerminalUrl(b.name)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a> ';
+      }
+      html += '<button class="btn btn-danger btn-sm" data-action="destroy" data-name="' + esc(b.name) + '">Destroy</button>';
+      html += '</td></tr>';
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
+  }
+}
+
+async function loadSandboxStats(name) {
+  try {
+    const s = await api('/api/sandboxes/' + encodeURIComponent(name) + '/stats');
+    let html = '<div class="sandbox-stats">';
+    html += '<div class="s-stat"><span class="s-stat-label">CPU</span><span class="s-stat-value">' + s.cpu.toFixed(1) + '%</span></div>';
+    html += '<div class="s-stat"><span class="s-stat-label">Memory</span><span class="s-stat-value">' + formatBytes(s.memory.current) + (s.memory.max ? ' / ' + formatBytes(s.memory.max) : '') + '</span></div>';
+    html += '<div class="s-stat"><span class="s-stat-label">Processes</span><span class="s-stat-value">' + s.processes + '</span></div>';
+    html += '</div>';
+    return html;
+  } catch (e) {
+    return '<div class="sandbox-stats"><div class="s-stat"><span class="s-stat-value" style="color:var(--text-dim)">Stats unavailable</span></div></div>';
+  }
+}
+
+async function loadFiles(name, dirPath) {
+  const container = $('#rightContent');
+  currentFile = null;
+  editMode = false;
+
+  try {
+    const files = await api('/api/sandboxes/' + encodeURIComponent(name) + '/files?path=' + encodeURIComponent(dirPath));
+    let statsHtml = await loadSandboxStats(name);
+
+    let crumbs = '<span data-action="crumb" data-path="/">/</span>';
+    if (dirPath !== '/') {
+      const parts = dirPath.split('/').filter(Boolean);
+      let accumulated = '';
+      for (let i = 0; i < parts.length; i++) {
+        accumulated += '/' + parts[i];
+        if (i < parts.length - 1) {
+          crumbs += '<span data-action="crumb" data-path="' + esc(accumulated) + '">' + esc(parts[i]) + '</span>/';
+        } else {
+          crumbs += '<span class="current">' + esc(parts[i]) + '</span>';
+        }
+      }
+    }
+
+    let html = statsHtml;
+    html += '<div class="breadcrumb">' + crumbs + '</div>';
+    html += '<ul class="file-list">';
+    if (dirPath !== '/') {
+      html += '<li class="file-item" data-action="crumb" data-path="' + esc(dirPath.split('/').slice(0, -1).join('/') || '/') + '">';
+      html += '<span class="file-icon">&#128193;</span><span class="file-name">..</span><span class="file-size"></span><span class="file-mtime"></span></li>';
+    }
+    for (const f of files) {
+      const icon = f.type === 'directory' ? '&#128193;' : '&#128196;';
+      const action = f.type === 'directory' ? 'data-action="opendir" data-path="' + esc(dirPath === '/' ? '/' + f.name : dirPath + '/' + f.name) + '"' : 'data-action="openfile" data-path="' + esc(dirPath === '/' ? '/' + f.name : dirPath + '/' + f.name) + '"';
+      html += '<li class="file-item" ' + action + '>';
+      html += '<span class="file-icon">' + icon + '</span>';
+      html += '<span class="file-name">' + esc(f.name) + '</span>';
+      html += '<span class="file-size">' + (f.type === 'file' ? formatBytes(f.size) : '') + '</span>';
+      html += '<span class="file-mtime">' + (f.mtime ? new Date(f.mtime).toLocaleString() : '') + '</span>';
+      html += '</li>';
+    }
+    if (!files.length && dirPath === '/') {
+      html += '<li class="file-item" style="cursor:default;color:var(--text-dim);justify-content:center">Empty workspace</li>';
+    }
+    html += '</ul>';
+    container.innerHTML = html;
+    currentPath = dirPath;
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
+  }
+}
+
+async function openFile(name, filePath) {
+  const container = $('#rightContent');
+  currentFile = filePath;
+  editMode = false;
+
+  try {
+    const res = await fetch('/api/sandboxes/' + encodeURIComponent(name) + '/files/read?path=' + encodeURIComponent(filePath));
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to read file');
+    }
+    const content = await res.text();
+    originalContent = content;
+
+    const parts = filePath.split('/');
+    const fileName = parts[parts.length - 1];
+
+    let html = '<div class="file-viewer">';
+    html += '<div class="file-toolbar">';
+    html += '<button class="btn btn-ghost btn-sm" data-action="backfiles">Back</button>';
+    html += '<span class="file-title">' + esc(filePath) + '</span>';
+    html += '<button class="btn btn-primary btn-sm" id="btnEdit" data-action="toggleEdit">Edit</button>';
+    html += '<button class="btn btn-primary btn-sm" id="btnSave" data-action="saveFile" style="display:none">Save</button>';
+    html += '<button class="btn btn-ghost btn-sm" id="btnCancel" data-action="cancelEdit" style="display:none">Cancel</button>';
+    html += '</div>';
+
+    const lines = content.split('\n');
+    let codeHtml = '';
+    for (let i = 0; i < lines.length; i++) {
+      codeHtml += '<span class="code-line"><span class="ln">' + (i + 1) + '</span>' + esc(lines[i]) + '</span>';
+    }
+
+    html += '<div class="code-view" id="codeView"><pre>' + codeHtml + '</pre></div>';
+    html += '<textarea class="edit-area" id="editArea" style="display:none">' + esc(content) + '</textarea>';
+    html += '</div>';
+    container.innerHTML = html;
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function toggleEdit() {
+  editMode = !editMode;
+  const codeView = $('#codeView');
+  const editArea = $('#editArea');
+  const btnEdit = $('#btnEdit');
+  const btnSave = $('#btnSave');
+  const btnCancel = $('#btnCancel');
+
+  if (editMode) {
+    codeView.style.display = 'none';
+    editArea.style.display = 'block';
+    editArea.focus();
+    btnEdit.style.display = 'none';
+    btnSave.style.display = '';
+    btnCancel.style.display = '';
+  } else {
+    codeView.style.display = '';
+    editArea.style.display = 'none';
+    btnEdit.style.display = '';
+    btnSave.style.display = 'none';
+    btnCancel.style.display = 'none';
+  }
+}
+
+async function saveFile(name, filePath) {
+  const editArea = $('#editArea');
+  const content = editArea.value;
+  try {
+    await api('/api/sandboxes/' + encodeURIComponent(name) + '/files/write', {
+      method: 'PUT',
+      body: JSON.stringify({ path: filePath, content })
+    });
+    toast('File saved', 'success');
+    editMode = false;
+    await openFile(name, filePath);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function cancelEdit() {
+  editMode = false;
+  const codeView = $('#codeView');
+  const editArea = $('#editArea');
+  const btnEdit = $('#btnEdit');
+  const btnSave = $('#btnSave');
+  const btnCancel = $('#btnCancel');
+  codeView.style.display = '';
+  editArea.style.display = 'none';
+  editArea.value = originalContent;
+  btnEdit.style.display = '';
+  btnSave.style.display = 'none';
+  btnCancel.style.display = 'none';
+}
+
+async function selectSandbox(name) {
+  selectedSandbox = name;
+  currentPath = '/';
+  $('#rightTitle').textContent = name;
+  await loadSandboxes();
+  await loadFiles(name, '/');
+}
+
+async function destroySandbox(name) {
+  if (!confirm('Destroy sandbox "' + name + '"? This cannot be undone.')) return;
+  try {
+    await api('/api/sandboxes/' + encodeURIComponent(name), { method: 'DELETE' });
+    toast('Sandbox "' + name + '" destroyed', 'success');
+    if (selectedSandbox === name) {
+      selectedSandbox = null;
+      $('#rightTitle').textContent = 'Select a Sandbox';
+      $('#rightContent').innerHTML = '<div class="empty-state"><div class="icon">&#128230;</div><div>Click a sandbox name to browse files</div></div>';
+    }
+    await loadSandboxes();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function createSandbox() {
+  const input = $('#createName');
+  const name = input.value.trim();
+  if (!name) return;
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    toast('Invalid name. Use alphanumeric, hyphens, underscores only.', 'error');
+    return;
+  }
+  try {
+    const btn = $('#btnCreateSubmit');
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+    await api('/api/sandboxes', {
+      method: 'POST',
+      body: JSON.stringify({ name })
+    });
+    toast('Sandbox "' + name + '" created', 'success');
+    input.value = '';
+    $('#createForm').classList.remove('active');
+    await loadSandboxes();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    const btn = $('#btnCreateSubmit');
+    btn.disabled = false;
+    btn.textContent = 'Create';
+  }
+}
+
+document.addEventListener('click', async (e) => {
+  const target = e.target.closest('[data-action]');
+  if (!target) return;
+  const action = target.dataset.action;
+
+  if (action === 'select') {
+    await selectSandbox(target.dataset.name);
+  } else if (action === 'destroy') {
+    await destroySandbox(target.dataset.name);
+  } else if (action === 'opendir') {
+    if (selectedSandbox) {
+      currentPath = target.dataset.path;
+      await loadFiles(selectedSandbox, currentPath);
+    }
+  } else if (action === 'crumb') {
+    if (selectedSandbox) {
+      currentPath = target.dataset.path;
+      await loadFiles(selectedSandbox, currentPath);
+    }
+  } else if (action === 'openfile') {
+    if (selectedSandbox) {
+      await openFile(selectedSandbox, target.dataset.path);
+    }
+  } else if (action === 'backfiles') {
+    if (selectedSandbox) {
+      await loadFiles(selectedSandbox, currentPath);
+    }
+  } else if (action === 'toggleEdit') {
+    toggleEdit();
+  } else if (action === 'saveFile') {
+    if (selectedSandbox && currentFile) {
+      await saveFile(selectedSandbox, currentFile);
+    }
+  } else if (action === 'cancelEdit') {
+    cancelEdit();
+  }
+});
+
+$('#btnCreate').addEventListener('click', () => {
+  const form = $('#createForm');
+  form.classList.toggle('active');
+  if (form.classList.contains('active')) {
+    $('#createName').focus();
+  }
+});
+
+$('#btnCreateCancel').addEventListener('click', () => {
+  $('#createForm').classList.remove('active');
+  $('#createName').value = '';
+});
+
+$('#btnCreateSubmit').addEventListener('click', createSandbox);
+
+$('#createName').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') createSandbox();
+  if (e.key === 'Escape') {
+    $('#createForm').classList.remove('active');
+    $('#createName').value = '';
+  }
+});
+
+async function refresh() {
+  await Promise.all([loadStats(), loadSandboxes()]);
+  if (selectedSandbox && !currentFile) {
+    await loadFiles(selectedSandbox, currentPath);
+  }
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

@@ -16,6 +16,7 @@ RUN mkdir -p /run/sshd /var/log/supervisor /root/data/sandboxes /root/scripts /w
 COPY config/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
 COPY config/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY scripts/ /root/scripts/
+COPY web-ui/ /root/web-ui/
 COPY entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh /root/scripts/sandbox*

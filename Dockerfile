@@ -3,7 +3,7 @@ FROM node:22-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl wget git nginx supervisor openssh-server \
     iproute2 bridge-utils iputils-ping python3 sqlite3 \
-    procps psmisc util-linux iptables xz-utils \
+    procps psmisc util-linux iptables xz-utils ripgrep fd-find \
     && rm -rf /var/lib/apt/lists/*
 
 RUN ARCH=$(case $(dpkg --print-architecture) in amd64) echo "x86_64";; arm64) echo "aarch64";; *) echo $(dpkg --print-architecture);; esac) && \

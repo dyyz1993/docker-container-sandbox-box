@@ -231,6 +231,20 @@ function createRemoteGrepOps(host: string, port: number, sandboxName: string): G
 			if (exitCode !== 0) return "";
 			return stdout;
 		},
+		async search(pattern, searchPath, options): Promise<string> {
+			const args: string[] = ["--json", "--line-number", "--color=never", "--hidden"];
+			if (options.ignoreCase) args.push("--ignore-case");
+			if (options.literal) args.push("--fixed-strings");
+			if (options.glob) args.push("--glob", options.glob);
+			args.push("--", pattern.replace(/'/g, "'\\''"), searchPath.replace(/'/g, "'\\''"));
+			const cmd = args.join(" ");
+			const { exitCode, stdout } = await execSsh(
+				host, port,
+				`sandbox ${sandboxName} rg ${cmd}`,
+				30,
+			);
+			return exitCode !== null ? stdout : "";
+		},
 	};
 }
 

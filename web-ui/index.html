@@ -203,14 +203,10 @@ let originalContent = '';
 
 function getTerminalUrl(sandboxDomain) {
   if (!sandboxDomain) return '#';
-  // sandboxDomain is like "demo1.sandbox.19930810.xyz" → "https://terminal-demo1.sandbox.19930810.xyz:8443"
-  const parts = sandboxDomain.split('.');
+  var parts = sandboxDomain.split('.');
   if (parts.length >= 2) {
     parts[0] = 'terminal-' + parts[0];
-    // Use same protocol and port as current page, fallback to https:8443
-    const proto = window.location.protocol === 'https:' ? 'https:' : 'https:';
-    const port = window.location.port ? '' : ':8443';
-    return proto + '//' + parts.join('.') + port;
+    return 'https://' + parts.join('.') + ':8443';
   }
   return '#';
 }

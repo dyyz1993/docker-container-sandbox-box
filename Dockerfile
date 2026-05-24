@@ -20,12 +20,10 @@ COPY config/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY scripts/ /root/scripts/
 COPY web-ui/ /root/web-ui/
 COPY entrypoint.sh /entrypoint.sh
-COPY sandbox-bash-extension/ /root/.pi/agent/extensions/sandbox-box/
-COPY .pi/sandbox-box.json /root/.pi/
+COPY pi-extension/sandbox-bash.js /root/.pi/agent/extensions/sandbox-box/index.js
+COPY pi-extension/package.json /root/.pi/agent/extensions/sandbox-box/
 
 RUN cd /root/web-ui && npm install --production && node -e "require('better-sqlite3')" && echo "better-sqlite3 OK"
-
-RUN cd /root/.pi/agent/extensions/sandbox-box && npm install --production
 
 RUN chmod +x /entrypoint.sh /root/scripts/sandbox*
 

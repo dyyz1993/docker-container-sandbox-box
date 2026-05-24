@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execSync, spawn } = require('child_process');
 
 const PORT = 3000;
@@ -12,6 +13,40 @@ const CGROUP_ROOT = '/sys/fs/cgroup';
 const PROJECTS_FILE = '/root/data/projects.json';
 const USERS_FILE = '/root/data/users.json';
 const DB_PATH = process.env.SANDBOX_DB || '/root/data/sandbox.db';
+
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'sandbox2024';
+const AUTH_SECRET = process.env.AUTH_SECRET || 'sandbox-box-secret-key';
+const TOKEN_EXPIRY = 86400;
+
+function generateToken() {
+  const payload = JSON.stringify({
+    password: ADMIN_PASSWORD,
+    exp: Date.now() + TOKEN_EXPIRY * 1000
+  });
+  return crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('hex');
+}
+
+function validateToken(token) {
+  if (!token) return false;
+  const expectedToken = generateToken();
+  return token === expectedToken;
+}
+
+function authMiddleware(req, res) {
+  if (req.url === '/api/auth/login' || req.url === '/api/health') {
+    return true;
+  }
+  if (!req.url.startsWith('/api/')) {
+    return true;
+  }
+  const token = (req.headers.authorization && req.headers.authorization.replace('Bearer ', '')) ||
+    new URL(req.url, 'http://localhost').searchParams.get('token');
+  if (!validateToken(token)) {
+    sendJSON(res, 401, { error: 'Unauthorized', message: 'Invalid or missing token' });
+    return false;
+  }
+  return true;
+}
 
 let db;
 try {
@@ -1341,6 +1376,27 @@ async function handleRequest(req, res) {
   const method = req.method;
 
   try {
+    if (!authMiddleware(req, res)) return;
+
+    if (method === 'POST' && pathname === '/api/auth/login') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const { password } = JSON.parse(body);
+          if (password === ADMIN_PASSWORD) {
+            const token = generateToken();
+            sendJSON(res, 200, { token, expiresIn: TOKEN_EXPIRY });
+          } else {
+            sendJSON(res, 401, { error: 'Invalid password' });
+          }
+        } catch {
+          sendJSON(res, 400, { error: 'Invalid request' });
+        }
+      });
+      return;
+    }
+
     // --- Existing routes ---
 
     if (method === 'GET' && pathname === '/api/sandboxes') {
@@ -1570,7 +1626,6 @@ server.listen(PORT, () => {
 server.on('upgrade', (req, socket, head) => {
   if (req.url === '/ws/chat') {
     const acceptKey = req.headers['sec-websocket-key'];
-    const crypto = require('crypto');
     const hash = crypto.createHash('sha1')
       .update(acceptKey + '258EAFA5-E914-47DA-95CA-5AB5DC65B283')
       .digest('base64');

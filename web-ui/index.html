@@ -246,9 +246,30 @@ a:hover{text-decoration:underline}
 .chat-input-wrap textarea{flex:1;border:none;background:transparent;color:var(--text);font-size:13px;line-height:1.5;resize:none;outline:none;max-height:200px;min-height:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 .chat-input-btns{display:flex;gap:4px;flex-shrink:0}
 .chat-input-btns .btn{padding:6px 10px;font-size:13px}
+
+.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999}
+.login-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:32px;max-width:380px;width:90%;box-shadow:var(--shadow);text-align:center}
+.login-box h2{margin-bottom:8px;font-size:20px;color:var(--highlight)}
+.login-box p{margin-bottom:20px;color:var(--text-dim);font-size:13px}
+.login-box input{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:14px;outline:none;margin-bottom:12px}
+.login-box input:focus{border-color:var(--highlight)}
+.login-box .btn{width:100%;padding:10px;font-size:14px}
+.login-error{color:var(--red);font-size:12px;margin-bottom:8px;min-height:16px}
+.btn-logout{background:transparent;color:var(--text-dim);border:1px solid var(--border);padding:3px 10px;font-size:11px}
+.btn-logout:hover{background:var(--highlight);color:#fff;border-color:var(--highlight)}
 </style>
 </head>
 <body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>Sandbox Box</h2>
+    <p>Enter admin password to continue</p>
+    <div class="login-error" id="loginError"></div>
+    <input type="password" id="loginPassword" placeholder="Password" />
+    <button class="btn btn-primary" id="loginBtn">Login</button>
+  </div>
+</div>
 
 <div class="header">
   <div class="header-row">
@@ -259,6 +280,7 @@ a:hover{text-decoration:underline}
       <div class="stat">DISK <span class="stat-value" id="statDisk">-</span></div>
       <div class="stat">UP <span class="stat-value" id="statUptime">-</span></div>
       <div class="stat">BOXES <span class="stat-value" id="statCount">-</span></div>
+      <button class="btn btn-logout" id="logoutBtn">Logout</button>
     </div>
   </div>
   <div class="tabs" id="tabNav">
@@ -538,15 +560,84 @@ function toast(msg, type) {
   }, 3500);
 }
 
+var authToken = localStorage.getItem('sb_token') || '';
+
 function api(url, opts) {
   opts = opts || {};
-  return fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
+  var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+  return fetch(url, Object.assign({}, opts, { headers: headers }))
     .then(function(res) {
+      if (res.status === 401) {
+        authToken = '';
+        localStorage.removeItem('sb_token');
+        showLoginOverlay();
+        throw new Error('Session expired. Please login again.');
+      }
       return res.json().then(function(data) {
         if (!res.ok) throw new Error(data.error || 'Request failed');
         return data;
       });
     });
+}
+
+function showLoginOverlay() {
+  var overlay = $('#loginOverlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function hideLoginOverlay() {
+  var overlay = $('#loginOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function doLogin() {
+  var password = $('#loginPassword').value;
+  if (!password) return;
+  var errorEl = $('#loginError');
+  var btn = $('#loginBtn');
+  btn.disabled = true;
+  btn.textContent = 'Logging in...';
+  errorEl.textContent = '';
+  fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: password })
+  }).then(function(r) {
+    return r.json().then(function(data) {
+      if (!r.ok) {
+        errorEl.textContent = data.error || 'Login failed';
+        btn.disabled = false;
+        btn.textContent = 'Login';
+        return;
+      }
+      authToken = data.token;
+      localStorage.setItem('sb_token', data.token);
+      hideLoginOverlay();
+      $('#loginPassword').value = '';
+      btn.disabled = false;
+      btn.textContent = 'Login';
+      refresh();
+    });
+  }).catch(function(e) {
+    errorEl.textContent = e.message || 'Network error';
+    btn.disabled = false;
+    btn.textContent = 'Login';
+  });
+}
+
+$('#loginBtn').addEventListener('click', doLogin);
+$('#loginPassword').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doLogin();
+});
+$('#logoutBtn').addEventListener('click', function() {
+  authToken = '';
+  localStorage.removeItem('sb_token');
+  showLoginOverlay();
+});
+
+if (authToken) {
+  hideLoginOverlay();
 }
 
 function statusBadge(status) {
@@ -755,7 +846,9 @@ function sbOpenFile(name, filePath) {
   sbCurrentFile = filePath;
   sbEditMode = false;
 
-  fetch('/api/sandboxes/' + encodeURIComponent(name) + '/files/read?path=' + encodeURIComponent(filePath))
+  fetch('/api/sandboxes/' + encodeURIComponent(name) + '/files/read?path=' + encodeURIComponent(filePath), {
+    headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+  })
     .then(function(res) {
       if (!res.ok) return res.json().then(function(err) { throw new Error(err.error || 'Read failed'); });
       return res.text();
@@ -1472,6 +1565,7 @@ var wsConnected = false;
 function agentConnect() {
   if (agentWs && (agentWs.readyState === WebSocket.OPEN || agentWs.readyState === WebSocket.CONNECTING)) return;
   var wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/ws/chat';
+  if (authToken) wsUrl += '?token=' + encodeURIComponent(authToken);
   agentWs = new WebSocket(wsUrl);
   agentUpdateStatus('connecting');
   var wsTimeout = setTimeout(function() {
@@ -1514,8 +1608,10 @@ function agentConnect() {
 
 function startPolling() {
   if (chatPollTimer) return;
+  var pollHeaders = { 'Content-Type': 'application/json' };
+  if (authToken) pollHeaders['Authorization'] = 'Bearer ' + authToken;
   chatPollTimer = setInterval(function() {
-    fetch('/api/chat/status').then(function(r) { return r.json(); }).then(function(d) {
+    fetch('/api/chat/status', { headers: pollHeaders }).then(function(r) { return r.json(); }).then(function(d) {
       var dot = $('#agent-status-dot');
       var text = $('#agent-status-text');
       if (dot && text) {
@@ -1531,7 +1627,7 @@ function startPolling() {
         }
       }
     }).catch(function() {});
-    fetch('/api/chat/messages').then(function(r) { return r.json(); }).then(function(d) {
+    fetch('/api/chat/messages', { headers: pollHeaders }).then(function(r) { return r.json(); }).then(function(d) {
       if (d.messages && d.messages.length > 0) {
         var changed = d.messages.length !== agentMessages.length;
         if (!changed) {
@@ -1545,7 +1641,7 @@ function startPolling() {
         }
       }
     }).catch(function() {});
-    fetch('/api/chat/models').then(function(r) { return r.json(); }).then(function(d) {
+    fetch('/api/chat/models', { headers: pollHeaders }).then(function(r) { return r.json(); }).then(function(d) {
       if (d.models && d.models.length > 0) {
         agentModels = d.models;
         agentPopulateModels();
@@ -1874,7 +1970,7 @@ function agentSend() {
   } else {
     fetch('/api/chat/prompt', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authToken ? { 'Authorization': 'Bearer ' + authToken } : {}),
       body: JSON.stringify({ message: text })
     }).then(function(r) { return r.json(); }).then(function(d) {
       if (d.error) toast(d.error, 'error');
@@ -2098,7 +2194,7 @@ $('#chat-send-btn').addEventListener('click', agentSend);
 $('#chat-stop-btn').addEventListener('click', agentStopStream);
 
 $('#agent-start-btn').addEventListener('click', function() {
-  fetch('/api/chat/start', { method: 'POST' })
+  fetch('/api/chat/start', { method: 'POST', headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {} })
     .then(function(r) { return r.json(); })
     .then(function() {
       toast('Agent starting...', 'info');
@@ -2111,7 +2207,7 @@ $('#agent-stop-btn').addEventListener('click', function() {
   if (agentWs && agentWs.readyState === WebSocket.OPEN) {
     agentWsSend({ action: 'stop' });
   } else {
-    fetch('/api/chat/stop', { method: 'POST' }).catch(function() {});
+    fetch('/api/chat/stop', { method: 'POST', headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {} }).catch(function() {});
   }
   agentStreaming = false;
   agentCurrentStreamId = null;
@@ -2122,7 +2218,7 @@ $('#agent-refresh-btn').addEventListener('click', function() {
   if (agentWs && agentWs.readyState === WebSocket.OPEN) {
     agentWsSend({ action: 'get_messages' });
   } else {
-    fetch('/api/chat/messages').then(function(r) { return r.json(); }).then(function(d) {
+    fetch('/api/chat/messages', { headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {} }).then(function(r) { return r.json(); }).then(function(d) {
       if (d.messages) {
         agentMessages = d.messages;
         agentRenderMessages();

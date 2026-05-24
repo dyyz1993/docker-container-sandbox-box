@@ -201,10 +201,15 @@ let currentFile = null;
 let editMode = false;
 let originalContent = '';
 
-function getTerminalUrl(name) {
-  const host = window.location.hostname;
-  const domain = host.replace('admin.sandbox', 'terminal-' + name + '.sandbox');
-  return 'http://' + domain;
+function getTerminalUrl(sandboxDomain) {
+  if (!sandboxDomain) return '#';
+  // sandboxDomain is like "demo1.sandbox.19930810.xyz" → "terminal-demo1.sandbox.19930810.xyz"
+  const parts = sandboxDomain.split('.');
+  if (parts.length >= 2) {
+    parts[0] = 'terminal-' + parts[0];
+    return 'http://' + parts.join('.');
+  }
+  return '#';
 }
 
 function statusBadge(status) {
@@ -248,7 +253,7 @@ async function loadSandboxes() {
       html += '<td>' + esc(b.pid || '-') + '</td>';
       html += '<td>';
       if (b.status === 'running') {
-        html += '<a href="' + esc(getTerminalUrl(b.name)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a> ';
+        html += '<a href="' + esc(getTerminalUrl(b.domain)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a> ';
       }
       html += '<button class="btn btn-danger btn-sm" data-action="destroy" data-name="' + esc(b.name) + '">Destroy</button>';
       html += '</td></tr>';

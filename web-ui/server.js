@@ -1,7 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 
 const PORT = 3000;
 const WEB_DIR = __dirname;
@@ -660,6 +660,119 @@ async function handleDeleteUser(req, res, id) {
 }
 
 // ============================================================
+// WebSocket / RPC Chat Support
+// ============================================================
+
+const chatClients = new Set();
+
+let rpcProcess = null;
+let rpcRequestId = 0;
+const rpcPending = new Map();
+let rpcReady = false;
+let messageHistory = [];
+let currentState = null;
+
+function broadcastToChat(data) {
+  const msg = JSON.stringify(data);
+  for (const ws of chatClients) {
+    try { ws.send(msg); } catch {}
+  }
+}
+
+function startRpc() {
+  if (rpcProcess) return;
+
+  const cwd = process.env.RPC_CWD || '/root';
+  const args = ['--mode', 'rpc', '--no-session'];
+
+  rpcProcess = spawn('pi', args, {
+    cwd,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' }
+  });
+
+  let buffer = '';
+  rpcProcess.stdout.on('data', (chunk) => {
+    buffer += chunk.toString();
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const event = JSON.parse(line);
+        handleRpcEvent(event);
+      } catch {}
+    }
+  });
+
+  rpcProcess.stderr.on('data', () => {});
+
+  rpcProcess.on('close', (code) => {
+    rpcProcess = null;
+    rpcReady = false;
+    broadcastToChat({ type: 'status', status: 'stopped', code });
+  });
+
+  rpcProcess.on('error', (err) => {
+    rpcProcess = null;
+    rpcReady = false;
+    broadcastToChat({ type: 'status', status: 'error', error: err.message });
+  });
+}
+
+function stopRpc() {
+  if (rpcProcess) {
+    rpcProcess.kill('SIGTERM');
+    setTimeout(() => { if (rpcProcess) rpcProcess.kill('SIGKILL'); }, 1000);
+    rpcProcess = null;
+    rpcReady = false;
+  }
+}
+
+function sendRpcCommand(cmd) {
+  if (!rpcProcess) return null;
+  const id = 'req_' + (++rpcRequestId);
+  cmd.id = id;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { rpcPending.delete(id); reject(new Error('timeout')); }, 30000);
+    rpcPending.set(id, { resolve, reject, timer });
+    rpcProcess.stdin.write(JSON.stringify(cmd) + '\n');
+  });
+}
+
+function handleRpcEvent(event) {
+  if (event.type === 'ready') {
+    rpcReady = true;
+    broadcastToChat({ type: 'status', status: 'ready' });
+    return;
+  }
+
+  if (event.type === 'response' && event.id && rpcPending.has(event.id)) {
+    const pending = rpcPending.get(event.id);
+    rpcPending.delete(event.id);
+    clearTimeout(pending.timer);
+    pending.resolve(event);
+    return;
+  }
+
+  if (event.type === 'message_update') {
+    broadcastToChat({ type: 'stream', data: event });
+  } else if (event.type === 'agent_end') {
+    broadcastToChat({ type: 'done', data: event });
+    sendRpcCommand({ type: 'get_full_messages' }).then(res => {
+      if (res?.messages) {
+        messageHistory = res.messages;
+        broadcastToChat({ type: 'messages', messages: messageHistory });
+      }
+    }).catch(() => {});
+  } else if (event.type === 'message_start') {
+    broadcastToChat({ type: 'stream_start', data: event });
+  } else {
+    broadcastToChat({ type: 'event', data: event });
+  }
+}
+
+// ============================================================
 // ROUTER
 // ============================================================
 
@@ -782,6 +895,18 @@ async function handleRequest(req, res) {
       return await handleSystemStats(req, res);
     }
 
+    // --- Chat API routes ---
+    if (method === 'POST' && pathname === '/api/chat/start') { startRpc(); sendJSON(res, 200, { status: 'starting' }); return; }
+    if (method === 'POST' && pathname === '/api/chat/stop') { stopRpc(); sendJSON(res, 200, { status: 'stopped' }); return; }
+    if (method === 'POST' && pathname === '/api/chat/prompt') {
+      readBody(req).then(body => {
+        sendRpcCommand({ type: 'prompt', message: body.message }).then(r => sendJSON(res, 200, r)).catch(e => sendError(res, 500, e.message));
+      });
+      return;
+    }
+    if (method === 'GET' && pathname === '/api/chat/status') { sendJSON(res, 200, { running: !!rpcProcess, ready: rpcReady }); return; }
+    if (method === 'GET' && pathname === '/api/chat/messages') { sendJSON(res, 200, { messages: messageHistory }); return; }
+
     // --- Static fallback ---
     return serveStatic(req, res);
   } catch (e) {
@@ -794,3 +919,129 @@ const server = http.createServer(handleRequest);
 server.listen(PORT, () => {
   console.log(`Sandbox Box Web UI running on http://0.0.0.0:${PORT}`);
 });
+
+server.on('upgrade', (req, socket, head) => {
+  if (req.url === '/ws/chat') {
+    const acceptKey = req.headers['sec-websocket-key'];
+    const crypto = require('crypto');
+    const hash = crypto.createHash('sha1')
+      .update(acceptKey + '258EAFA5-E914-47DA-95CA-5AB5DC65B283')
+      .digest('base64');
+
+    socket.write(
+      'HTTP/1.1 101 Switching Protocols\r\n' +
+      'Upgrade: websocket\r\n' +
+      'Connection: Upgrade\r\n' +
+      'Sec-WebSocket-Accept: ' + hash + '\r\n\r\n'
+    );
+
+    const ws = { socket, send: (data) => sendWsFrame(socket, data) };
+    chatClients.add(ws);
+
+    socket.on('data', (buf) => {
+      const msgs = parseWsFrames(buf);
+      for (const msg of msgs) {
+        handleChatMessage(ws, msg);
+      }
+    });
+
+    socket.on('close', () => chatClients.delete(ws));
+    socket.on('error', () => chatClients.delete(ws));
+  }
+});
+
+function sendWsFrame(socket, data) {
+  const payload = Buffer.from(data);
+  let header;
+  if (payload.length < 126) {
+    header = Buffer.alloc(2);
+    header[0] = 0x81;
+    header[1] = payload.length;
+  } else if (payload.length < 65536) {
+    header = Buffer.alloc(4);
+    header[0] = 0x81;
+    header[1] = 126;
+    header.writeUInt16BE(payload.length, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x81;
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(payload.length), 2);
+  }
+  socket.write(Buffer.concat([header, payload]));
+}
+
+function parseWsFrames(buf) {
+  const msgs = [];
+  let offset = 0;
+  while (offset < buf.length) {
+    if (offset + 2 > buf.length) break;
+    const firstByte = buf[offset];
+    const op = firstByte & 0x0f;
+    if (op === 0x8) break;
+    const masked = (buf[offset + 1] & 0x80) !== 0;
+    let payloadLen = buf[offset + 1] & 0x7f;
+    let headerLen = 2;
+    if (payloadLen === 126) {
+      payloadLen = buf.readUInt16BE(offset + 2);
+      headerLen = 4;
+    } else if (payloadLen === 127) {
+      payloadLen = Number(buf.readBigUInt64BE(offset + 2));
+      headerLen = 10;
+    }
+    if (masked) headerLen += 4;
+    if (offset + headerLen + payloadLen > buf.length) break;
+    let payload = buf.slice(offset + headerLen, offset + headerLen + payloadLen);
+    if (masked) {
+      const maskKey = buf.slice(offset + headerLen - 4, offset + headerLen);
+      for (let i = 0; i < payload.length; i++) payload[i] ^= maskKey[i % 4];
+    }
+    if (op === 0x1) {
+      try { msgs.push(JSON.parse(payload.toString())); } catch { msgs.push({ raw: payload.toString() }); }
+    }
+    offset += headerLen + payloadLen;
+  }
+  return msgs;
+}
+
+async function handleChatMessage(ws, msg) {
+  try {
+    switch (msg.action) {
+      case 'start':
+        startRpc();
+        break;
+      case 'stop':
+        stopRpc();
+        break;
+      case 'prompt':
+        if (!rpcReady) { ws.send(JSON.stringify({ type: 'error', error: 'RPC not ready' })); return; }
+        await sendRpcCommand({ type: 'prompt', message: msg.message });
+        break;
+      case 'abort':
+        await sendRpcCommand({ type: 'abort' });
+        break;
+      case 'get_messages':
+        if (!rpcReady) { ws.send(JSON.stringify({ type: 'messages', messages: messageHistory })); return; }
+        const res = await sendRpcCommand({ type: 'get_full_messages' });
+        if (res?.messages) { messageHistory = res.messages; ws.send(JSON.stringify({ type: 'messages', messages: messageHistory })); }
+        break;
+      case 'get_models':
+        const models = await sendRpcCommand({ type: 'get_available_models' });
+        ws.send(JSON.stringify({ type: 'models', models: models?.models || [] }));
+        break;
+      case 'set_model':
+        await sendRpcCommand({ type: 'set_model', provider: msg.provider, modelId: msg.modelId });
+        break;
+      case 'get_state':
+        const state = await sendRpcCommand({ type: 'get_state' });
+        ws.send(JSON.stringify({ type: 'state', state }));
+        break;
+      case 'get_tools':
+        const tools = await sendRpcCommand({ type: 'get_active_tools' });
+        ws.send(JSON.stringify({ type: 'tools', tools: tools?.tools || [] }));
+        break;
+    }
+  } catch (err) {
+    ws.send(JSON.stringify({ type: 'error', error: err.message }));
+  }
+}

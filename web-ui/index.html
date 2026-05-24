@@ -617,6 +617,9 @@ function loadStats() {
     $('#statDisk').className = 'stat-value ' + (s.disk.percent > 90 ? 'crit' : s.disk.percent > 70 ? 'warn' : '');
     $('#statUptime').textContent = formatUptime(s.uptime);
     $('#statCount').textContent = s.sandboxCount;
+    if (s.activeSandbox) {
+      agentActiveSandbox = s.activeSandbox;
+    }
   }).catch(function() {});
 }
 
@@ -651,17 +654,20 @@ function loadDomains() {
 
 function renderSandboxes() {
   var container = $('#sb-list');
-  return api('/api/sandboxes').then(function(boxes) {
+  return api('/api/sandboxes').then(function(resp) {
+    var boxes = resp.sandboxes || resp;
     if (!boxes.length) {
       container.innerHTML = '<div class="empty-state"><div class="icon">&#128230;</div><div>No sandboxes found</div></div>';
       return;
     }
+    var activeSb = resp.activeSandbox || '';
     var html = '<table class="data-table"><thead><tr><th>Name</th><th>Status</th><th>Port</th><th>PID</th><th>Actions</th></tr></thead><tbody>';
     for (var i = 0; i < boxes.length; i++) {
       var b = boxes[i];
       var sel = selectedSandbox === b.name ? ' selected' : '';
+      var activeMark = (activeSb && b.name === activeSb) ? ' <span class="badge badge-blue" style="font-size:9px">Agent</span>' : '';
       html += '<tr class="' + sel + '">' +
-        '<td><span class="clickable" data-sb-action="select" data-sb-name="' + esc(b.name) + '">' + esc(b.name) + '</span></td>' +
+        '<td><span class="clickable" data-sb-action="select" data-sb-name="' + esc(b.name) + '">' + esc(b.name) + '</span>' + activeMark + '</td>' +
         '<td>' + statusBadge(b.status) + '</td>' +
         '<td>' + esc(b.port || '-') + '</td>' +
         '<td>' + esc(b.pid || '-') + '</td>' +
@@ -870,6 +876,7 @@ function sbCreate() {
   api('/api/sandboxes', { method: 'POST', body: JSON.stringify({ name: name }) })
     .then(function() {
       toast('Sandbox "' + name + '" created', 'success');
+      toast('此沙盒已设为 Agent 当前工作沙盒', 'info');
       input.value = '';
       $('#sb-createForm').classList.remove('active');
       renderSandboxes();
@@ -1073,6 +1080,7 @@ function pjCloneToWorkspace(projectId, projectName) {
       body: JSON.stringify({ userId: user.id, projectId: projectId, branch: branch })
     }).then(function() {
       toast('Workspace created', 'success');
+      toast('此沙盒已设为 Agent 当前工作沙盒', 'info');
       renderProjects();
     }).catch(function(e) { toast(e.message, 'error'); });
   }).catch(function(e) { toast(e.message, 'error'); });
@@ -1175,6 +1183,7 @@ function wsCreate() {
     body: JSON.stringify({ userId: userId, projectId: projectId, branch: branch })
   }).then(function() {
     toast('Workspace created', 'success');
+    toast('此沙盒已设为 Agent 当前工作沙盒', 'info');
     $('#ws-createForm').classList.remove('active');
     renderWorkspaces();
   }).catch(function(e) { toast(e.message, 'error'); })
@@ -1395,6 +1404,7 @@ function usrCreate() {
   api('/api/users', { method: 'POST', body: JSON.stringify({ name: name, email: email }) })
     .then(function() {
       toast('User "' + name + '" created', 'success');
+      toast('此沙盒已设为 Agent 当前工作沙盒', 'info');
       nameInput.value = '';
       emailInput.value = '';
       $('#usr-createForm').classList.remove('active');
@@ -1740,14 +1750,22 @@ function agentPopulateModels() {
 }
 
 function agentLoadSandboxes() {
-  api('/api/sandboxes').then(function(boxes) {
-    agentSandboxes = boxes || [];
+  api('/api/sandboxes').then(function(resp) {
+    agentSandboxes = (resp.sandboxes || resp) || [];
+    var activeSbFromApi = resp.activeSandbox || '';
     var runningCount = 0;
     for (var r = 0; r < agentSandboxes.length; r++) {
       if (agentSandboxes[r].status === 'running') runningCount++;
     }
     var countEl = $('#agent-sandbox-count');
     if (countEl) countEl.textContent = '(' + runningCount + ' running)';
+    if (activeSbFromApi) {
+      agentActiveSandbox = activeSbFromApi;
+      var sidebar = $('#agent-sandbox-select');
+      var toolbar = $('#agent-toolbar-sandbox');
+      if (sidebar) sidebar.value = agentActiveSandbox;
+      if (toolbar) toolbar.value = agentActiveSandbox;
+    }
     var selects = [$('#agent-sandbox-select'), $('#agent-toolbar-sandbox')];
     for (var s = 0; s < selects.length; s++) {
       if (!selects[s]) continue;
@@ -1809,7 +1827,7 @@ function agentSwitchSandbox(name) {
   agentActiveSandbox = name;
   api('/api/chat/sandbox', { method: 'POST', body: JSON.stringify({ name: name }) })
     .then(function() {
-      toast('Active sandbox: ' + name, 'success');
+      toast('已切换到沙盒: ' + name, 'success');
       agentUpdateActiveIndicator();
     })
     .catch(function(e) { toast('Switch failed: ' + e.message, 'error'); });
@@ -2256,6 +2274,7 @@ function refresh() {
     renderUsers();
   } else if (activeTab === 'agent') {
     agentLoadSandboxes();
+    agentLoadActiveSandbox();
   }
 }
 

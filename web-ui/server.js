@@ -143,16 +143,19 @@ async function handleListSandboxes(req, res) {
         });
       }
     }
-    sendJSON(res, 200, sandboxes);
+    const activeSandbox = fs.existsSync('/root/data/active-sandbox')
+      ? fs.readFileSync('/root/data/active-sandbox', 'utf-8').trim()
+      : null;
+    sendJSON(res, 200, { sandboxes, activeSandbox });
   } catch (e) {
     if (e.stdout && typeof e.stdout === 'string') {
       const lines = e.stdout.trim().split('\n').filter(l => l.trim());
       if (lines.length === 0 || (lines.length === 1 && lines[0] === '')) {
-        sendJSON(res, 200, []);
+        sendJSON(res, 200, { sandboxes: [], activeSandbox: null });
         return;
       }
     }
-    sendJSON(res, 200, []);
+    sendJSON(res, 200, { sandboxes: [], activeSandbox: null });
   }
 }
 
@@ -348,6 +351,9 @@ async function handleSystemStats(req, res) {
       }).length;
     } catch (_) {}
 
+    const activeSandbox = fs.existsSync('/root/data/active-sandbox')
+      ? fs.readFileSync('/root/data/active-sandbox', 'utf-8').trim()
+      : null;
     sendJSON(res, 200, {
       cpu: { percent: cpuPercent },
       memory: {
@@ -363,7 +369,8 @@ async function handleSystemStats(req, res) {
         percent: diskPercent
       },
       uptime,
-      sandboxCount
+      sandboxCount,
+      activeSandbox
     });
   } catch (e) {
     sendError(res, 500, e.message);
@@ -714,6 +721,8 @@ async function handleCreateUser(req, res) {
         return sendError(res, 500, `Failed to create sandbox for user: ${e.message}`);
       }
     }
+
+    fs.writeFileSync('/root/data/active-sandbox', sandboxName, 'utf-8');
 
     const id = generateId(name);
     if (db) {

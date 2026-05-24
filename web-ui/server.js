@@ -347,6 +347,41 @@ async function handleSandboxStats(req, res, sandboxName) {
   }
 }
 
+async function handleListDomains(req, res) {
+  try {
+    const confDir = '/etc/nginx/conf.d';
+    let files = [];
+    try {
+      files = fs.readdirSync(confDir).filter(f => /^sandbox-.*\.conf$/.test(f));
+    } catch (_) {}
+
+    const domains = [];
+    for (const file of files) {
+      const sandboxName = file.replace(/^sandbox-/, '').replace(/\.conf$/, '');
+      let content;
+      try {
+        content = fs.readFileSync(path.join(confDir, file), 'utf-8');
+      } catch (_) { continue; }
+
+      const serverBlocks = content.match(/server\s*\{[^}]*\}/gs) || [];
+      for (const block of serverBlocks) {
+        const serverNameMatch = block.match(/server_name\s+([^;]+);/);
+        const proxyPassMatch = block.match(/proxy_pass\s+([^;]+);/);
+        if (!serverNameMatch || !proxyPassMatch) continue;
+
+        const domain = serverNameMatch[1].trim().split(/\s+/)[0];
+        const proxyUrl = proxyPassMatch[1].trim().replace(/^https?:\/\//, '');
+        const type = domain.startsWith('terminal-') ? 'terminal' : 'app';
+
+        domains.push({ domain, sandbox: sandboxName, target: proxyUrl, type });
+      }
+    }
+    sendJSON(res, 200, domains);
+  } catch (e) {
+    sendError(res, 500, e.message);
+  }
+}
+
 function serveStatic(req, res) {
   const htmlPath = path.join(WEB_DIR, 'index.html');
   try {
@@ -409,6 +444,10 @@ async function handleRequest(req, res) {
     if (fileWriteMatch && method === 'PUT') {
       const name = fileWriteMatch[1];
       return await handleWriteFile(req, res, name);
+    }
+
+    if (method === 'GET' && pathname === '/api/domains') {
+      return await handleListDomains(req, res);
     }
 
     if (method === 'GET' && pathname === '/api/stats') {

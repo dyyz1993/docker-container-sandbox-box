@@ -101,6 +101,20 @@ a:hover{text-decoration:underline}
 .progress-fill.green{background:var(--green)}
 .progress-fill.yellow{background:#ff9800}
 .progress-fill.red{background:var(--red)}
+
+.domain-section{border-top:1px solid var(--border)}
+.domain-header{padding:10px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;font-size:13px;font-weight:600;background:rgba(15,52,96,0.15)}
+.domain-header:hover{background:rgba(15,52,96,0.3)}
+.domain-header .toggle{font-size:10px;transition:transform 0.2s}
+.domain-header .toggle.collapsed{transform:rotate(-90deg)}
+.domain-body{overflow-y:auto;max-height:240px}
+.domain-body.collapsed{display:none}
+.domain-table{width:100%;border-collapse:collapse}
+.domain-table th{text-align:left;padding:6px 12px;font-size:10px;text-transform:uppercase;color:var(--text-dim);font-weight:600;background:rgba(15,52,96,0.1);border-bottom:1px solid var(--border);position:sticky;top:0}
+.domain-table td{padding:5px 12px;border-bottom:1px solid rgba(30,58,95,0.3);font-size:12px;vertical-align:middle}
+.domain-table tr:hover td{background:rgba(15,52,96,0.15)}
+.badge-blue{background:rgba(33,150,243,0.2);color:var(--blue)}
+.badge-terminal{background:rgba(76,175,80,0.2);color:var(--green)}
 </style>
 </head>
 <body>
@@ -129,6 +143,18 @@ a:hover{text-decoration:underline}
     </div>
     <div class="panel-body" id="sandboxList">
       <div class="loading"><div class="spinner"></div>Loading...</div>
+    </div>
+    <div class="domain-section" id="domainSection">
+      <div class="domain-header" id="domainHeader">
+        <span>Domain Mappings (<span id="domainCount">0</span>)</span>
+        <span class="toggle" id="domainToggle">&#9660;</span>
+      </div>
+      <div class="domain-body" id="domainBody">
+        <table class="domain-table">
+          <thead><tr><th>Domain</th><th>Sandbox</th><th>Target</th><th>Type</th></tr></thead>
+          <tbody id="domainTableBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -539,8 +565,36 @@ $('#createName').addEventListener('keydown', (e) => {
   }
 });
 
+async function loadDomains() {
+  try {
+    const domains = await api('/api/domains');
+    $('#domainCount').textContent = domains.length;
+    const tbody = $('#domainTableBody');
+    if (!domains.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:16px">No domain mappings found</td></tr>';
+      return;
+    }
+    let html = '';
+    for (const d of domains) {
+      const typeBadge = d.type === 'terminal'
+        ? '<span class="badge badge-terminal">terminal</span>'
+        : '<span class="badge badge-blue">app</span>';
+      const domainLink = '<a href="https://' + esc(d.domain) + ':8443" target="_blank">' + esc(d.domain) + '</a>';
+      html += '<tr><td>' + domainLink + '</td><td>' + esc(d.sandbox) + '</td><td>' + esc(d.target) + '</td><td>' + typeBadge + '</td></tr>';
+    }
+    tbody.innerHTML = html;
+  } catch (_) { /* silent */ }
+}
+
+$('#domainHeader').addEventListener('click', () => {
+  const body = $('#domainBody');
+  const toggle = $('#domainToggle');
+  body.classList.toggle('collapsed');
+  toggle.classList.toggle('collapsed');
+});
+
 async function refresh() {
-  await Promise.all([loadStats(), loadSandboxes()]);
+  await Promise.all([loadStats(), loadSandboxes(), loadDomains()]);
   if (selectedSandbox && !currentFile) {
     await loadFiles(selectedSandbox, currentPath);
   }

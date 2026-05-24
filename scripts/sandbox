@@ -103,6 +103,10 @@ cmd_url() {
     echo "http://$(sandbox_domain "$name")"
 }
 
+cmd_clone() {
+    bash "${SCRIPT_DIR}/sandbox-clone.sh" "$@"
+}
+
 cmd_exec() {
     bash "${SCRIPT_DIR}/sandbox-exec.sh" "$@"
 }
@@ -166,6 +170,7 @@ cmd_health() {
 
 case "${1:-}" in
     create)  shift; cmd_create "$@" ;;
+    clone)   shift; cmd_clone "$@" ;;
     destroy) shift; cmd_destroy "$@" ;;
     list)    cmd_list ;;
     info)    shift; cmd_info "$@" ;;
@@ -177,6 +182,7 @@ case "${1:-}" in
     help|--help|-h)
         echo "Usage:"
         echo "  sandbox create <name> [--mount /path] [--port 3100]"
+        echo "  sandbox clone <name> <repo-url> [--branch main]"
         echo "  sandbox <name> <command...>       Execute command in sandbox"
         echo "  sandbox shell <name>              Interactive shell"
         echo "  sandbox daemon <name> <command>   Run long-running service"

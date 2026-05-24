@@ -402,6 +402,9 @@ export default function sandboxBoxExtension(pi: ExtensionAPI) {
 	if (flagPort) activePort = parseInt(flagPort, 10) || config.port;
 	if (flagEnabled) state.currentMode = "remote";
 
+	const flagName = pi.getFlag("sandbox-box-name") as string | undefined;
+	if (flagName) state.sandboxName = flagName;
+
 	function updateStatusBar(ctx: { ui: any }): void {
 		if (state.currentMode === "remote" && state.connected) {
 			ctx.ui.setStatus("sandbox-box", `Sandbox: ${state.sandboxName} @ ${activeHost}:${activePort}`);

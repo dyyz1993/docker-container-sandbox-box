@@ -8,6 +8,8 @@ const WEB_DIR = __dirname;
 const SANDBOX_CMD = '/usr/local/bin/sandbox';
 const WORKSPACE_ROOT = '/root/data/sandboxes';
 const CGROUP_ROOT = '/sys/fs/cgroup';
+const PROJECTS_FILE = '/root/data/projects.json';
+const USERS_FILE = '/root/data/users.json';
 
 function validatePath(p) {
   if (!p || p.includes('..') || !p.startsWith('/')) {
@@ -46,6 +48,46 @@ async function readBody(req) {
     req.on('error', reject);
   });
 }
+
+function readJsonFile(filePath) {
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    if (!fs.existsSync(filePath)) {
+      return [];
+    }
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(raw);
+  } catch (_) {
+    return [];
+  }
+}
+
+function writeJsonFile(filePath, data) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function generateId(name) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    + '-' + Date.now().toString(36);
+}
+
+function sanitizeForShell(str) {
+  return str.replace(/['"\\`$]/g, '');
+}
+
+// ============================================================
+// EXISTING ENDPOINTS
+// ============================================================
 
 async function handleListSandboxes(req, res) {
   try {
@@ -393,6 +435,234 @@ function serveStatic(req, res) {
   }
 }
 
+// ============================================================
+// NEW ENDPOINTS: Projects
+// ============================================================
+
+async function handleListProjects(req, res) {
+  const projects = readJsonFile(PROJECTS_FILE);
+  sendJSON(res, 200, projects);
+}
+
+async function handleCreateProject(req, res) {
+  try {
+    const body = await readBody(req);
+    const name = (body.name || '').trim();
+    const repoUrl = (body.repoUrl || '').trim();
+    if (!name) {
+      return sendError(res, 400, 'Project name is required');
+    }
+    if (!repoUrl) {
+      return sendError(res, 400, 'Repository URL is required');
+    }
+    const projects = readJsonFile(PROJECTS_FILE);
+    const id = generateId(name);
+    const project = {
+      id,
+      name,
+      repoUrl,
+      createdAt: new Date().toISOString()
+    };
+    projects.push(project);
+    writeJsonFile(PROJECTS_FILE, projects);
+    sendJSON(res, 200, project);
+  } catch (e) {
+    sendError(res, 500, e.message || 'Failed to create project');
+  }
+}
+
+async function handleDeleteProject(req, res, id) {
+  try {
+    const projects = readJsonFile(PROJECTS_FILE);
+    const index = projects.findIndex(p => p.id === id);
+    if (index === -1) {
+      return sendError(res, 404, 'Project not found');
+    }
+    const removed = projects.splice(index, 1)[0];
+    writeJsonFile(PROJECTS_FILE, projects);
+    sendJSON(res, 200, { success: true, project: removed });
+  } catch (e) {
+    sendError(res, 500, e.message || 'Failed to delete project');
+  }
+}
+
+// ============================================================
+// NEW ENDPOINTS: Clone into sandbox
+// ============================================================
+
+async function handleCloneSandbox(req, res) {
+  try {
+    const body = await readBody(req);
+    const name = (body.name || '').trim();
+    const repoUrl = (body.repoUrl || '').trim();
+    const branch = (body.branch || '').trim();
+
+    if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
+      return sendError(res, 400, 'Invalid sandbox name. Use alphanumeric, hyphens, underscores only.');
+    }
+    if (!repoUrl) {
+      return sendError(res, 400, 'Repository URL is required');
+    }
+
+    const safeUrl = sanitizeForShell(repoUrl);
+    const safeBranch = branch ? sanitizeForShell(branch) : '';
+
+    let cmd = `${SANDBOX_CMD} clone ${name} ${safeUrl}`;
+    if (safeBranch) {
+      cmd += ` --branch ${safeBranch}`;
+    }
+
+    const output = execSync(`${cmd} 2>&1`, { encoding: 'utf-8', timeout: 30000 });
+    sendJSON(res, 200, { success: true, message: output.trim() });
+  } catch (e) {
+    const msg = (e.stderr && typeof e.stderr === 'string') ? e.stderr.trim() : (e.message || 'Failed to clone sandbox');
+    sendError(res, 500, msg);
+  }
+}
+
+// ============================================================
+// NEW ENDPOINTS: Git operations in sandbox
+// ============================================================
+
+async function handleGitStatus(req, res, sandboxName) {
+  try {
+    if (!/^[a-zA-Z0-9_-]+$/.test(sandboxName)) {
+      return sendError(res, 400, 'Invalid sandbox name');
+    }
+    const cmd = `${SANDBOX_CMD} ${sandboxName} bash -c 'cd /workspace && git status --porcelain && echo --- && git branch --show-current && echo --- && git log --oneline -5' 2>&1`;
+    const output = execSync(cmd, { encoding: 'utf-8', timeout: 15000 });
+    const parts = output.trim().split('---');
+
+    const statusLines = (parts[0] || '').trim().split('\n').filter(l => l.trim());
+    const branch = (parts[1] || '').trim();
+    const commitLines = (parts[2] || '').trim().split('\n').filter(l => l.trim());
+
+    sendJSON(res, 200, {
+      status: statusLines,
+      branch,
+      recentCommits: commitLines
+    });
+  } catch (e) {
+    const msg = (e.stderr && typeof e.stderr === 'string') ? e.stderr.trim() : (e.message || 'Failed to get git status');
+    sendError(res, 500, msg);
+  }
+}
+
+async function handleGitPush(req, res, sandboxName) {
+  try {
+    if (!/^[a-zA-Z0-9_-]+$/.test(sandboxName)) {
+      return sendError(res, 400, 'Invalid sandbox name');
+    }
+    const body = await readBody(req);
+    const message = (body.message || `Update ${new Date().toISOString()}`).trim();
+    const branch = (body.branch || '').trim();
+
+    const safeMsg = sanitizeForShell(message);
+    let cmd = `${SANDBOX_CMD} ${sandboxName} bash -c 'cd /workspace && git add -A && git commit -m "${safeMsg}" && git push origin HEAD' 2>&1`;
+
+    const output = execSync(cmd, { encoding: 'utf-8', timeout: 30000 });
+    sendJSON(res, 200, { success: true, message: output.trim() });
+  } catch (e) {
+    const msg = (e.stderr && typeof e.stderr === 'string') ? e.stderr.trim() : (e.message || 'Failed to push');
+    sendError(res, 500, msg);
+  }
+}
+
+async function handleGitCheckout(req, res, sandboxName) {
+  try {
+    if (!/^[a-zA-Z0-9_-]+$/.test(sandboxName)) {
+      return sendError(res, 400, 'Invalid sandbox name');
+    }
+    const body = await readBody(req);
+    const branch = (body.branch || '').trim();
+    if (!branch) {
+      return sendError(res, 400, 'Branch name is required');
+    }
+
+    const safeBranch = sanitizeForShell(branch);
+    const cmd = `${SANDBOX_CMD} ${sandboxName} bash -c 'cd /workspace && git checkout ${safeBranch}' 2>&1`;
+
+    const output = execSync(cmd, { encoding: 'utf-8', timeout: 15000 });
+    sendJSON(res, 200, { success: true, message: output.trim() });
+  } catch (e) {
+    const msg = (e.stderr && typeof e.stderr === 'string') ? e.stderr.trim() : (e.message || 'Failed to checkout branch');
+    sendError(res, 500, msg);
+  }
+}
+
+// ============================================================
+// NEW ENDPOINTS: Users
+// ============================================================
+
+async function handleListUsers(req, res) {
+  const users = readJsonFile(USERS_FILE);
+  sendJSON(res, 200, users);
+}
+
+async function handleCreateUser(req, res) {
+  try {
+    const body = await readBody(req);
+    const name = (body.name || '').trim();
+    if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
+      return sendError(res, 400, 'Invalid user name. Use alphanumeric, hyphens, underscores only.');
+    }
+
+    const sandboxName = `user-${name}`;
+    const existingList = execSync(`${SANDBOX_CMD} list 2>&1`, { encoding: 'utf-8', timeout: 30000 });
+    const alreadyExists = existingList.split('\n').some(line => {
+      const parts = line.trim().split(/\s+/);
+      return parts[0] === sandboxName;
+    });
+    if (!alreadyExists) {
+      try {
+        execSync(`${SANDBOX_CMD} create ${sandboxName} 2>&1`, { encoding: 'utf-8', timeout: 60000 });
+      } catch (e) {
+        return sendError(res, 500, `Failed to create sandbox for user: ${e.message}`);
+      }
+    }
+
+    const users = readJsonFile(USERS_FILE);
+    const id = generateId(name);
+    const user = {
+      id,
+      name,
+      sandboxName,
+      createdAt: new Date().toISOString()
+    };
+    users.push(user);
+    writeJsonFile(USERS_FILE, users);
+    sendJSON(res, 200, user);
+  } catch (e) {
+    sendError(res, 500, e.message || 'Failed to create user');
+  }
+}
+
+async function handleDeleteUser(req, res, id) {
+  try {
+    const users = readJsonFile(USERS_FILE);
+    const index = users.findIndex(u => u.id === id);
+    if (index === -1) {
+      return sendError(res, 404, 'User not found');
+    }
+    const removed = users.splice(index, 1)[0];
+    writeJsonFile(USERS_FILE, users);
+
+    try {
+      if (removed.sandboxName && /^[a-zA-Z0-9_-]+$/.test(removed.sandboxName)) {
+        execSync(`${SANDBOX_CMD} destroy ${removed.sandboxName} 2>&1`, { encoding: 'utf-8', timeout: 30000 });
+      }
+    } catch (_) {}
+
+    sendJSON(res, 200, { success: true, user: removed });
+  } catch (e) {
+    sendError(res, 500, e.message || 'Failed to delete user');
+  }
+}
+
+// ============================================================
+// ROUTER
+// ============================================================
+
 function formatUptime(seconds) {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
@@ -410,41 +680,99 @@ async function handleRequest(req, res) {
   const method = req.method;
 
   try {
+    // --- Existing routes ---
+
     if (method === 'GET' && pathname === '/api/sandboxes') {
       return await handleListSandboxes(req, res);
+    }
+
+    if (method === 'POST' && pathname === '/api/sandboxes/clone') {
+      return await handleCloneSandbox(req, res);
     }
 
     if (method === 'POST' && pathname === '/api/sandboxes') {
       return await handleCreateSandbox(req, res);
     }
 
-    const destroyMatch = pathname.match(/^\/api\/sandboxes\/([a-zA-Z0-9_-]+)$/);
-    if (destroyMatch) {
-      const name = destroyMatch[1];
-      if (method === 'DELETE') {
+    // --- Projects routes ---
+
+    if (method === 'GET' && pathname === '/api/projects') {
+      return await handleListProjects(req, res);
+    }
+
+    if (method === 'POST' && pathname === '/api/projects') {
+      return await handleCreateProject(req, res);
+    }
+
+    const projectDeleteMatch = pathname.match(/^\/api\/projects\/([a-zA-Z0-9_-]+)$/);
+    if (projectDeleteMatch && method === 'DELETE') {
+      return await handleDeleteProject(req, res, projectDeleteMatch[1]);
+    }
+
+    // --- Users routes ---
+
+    if (method === 'GET' && pathname === '/api/users') {
+      return await handleListUsers(req, res);
+    }
+
+    if (method === 'POST' && pathname === '/api/users') {
+      return await handleCreateUser(req, res);
+    }
+
+    const userDeleteMatch = pathname.match(/^\/api\/users\/([a-zA-Z0-9_-]+)$/);
+    if (userDeleteMatch && method === 'DELETE') {
+      return await handleDeleteUser(req, res, userDeleteMatch[1]);
+    }
+
+    // --- Sandbox-specific routes ---
+
+    const sandboxMatch = pathname.match(/^\/api\/sandboxes\/([a-zA-Z0-9_-]+)\/(.+)$/);
+    if (sandboxMatch) {
+      const name = sandboxMatch[1];
+      const subPath = sandboxMatch[2];
+
+      if (method === 'DELETE' && !subPath.includes('/')) {
         return await handleDestroySandbox(req, res, name);
+      }
+
+      if (method === 'GET' && subPath === 'files') {
+        const queryPath = url.searchParams.get('path') || '/';
+        return await handleListFiles(req, res, name, queryPath);
+      }
+
+      if (method === 'GET' && subPath === 'files/read') {
+        const queryPath = url.searchParams.get('path') || '';
+        return await handleReadFile(req, res, name, queryPath);
+      }
+
+      if (method === 'PUT' && subPath === 'files/write') {
+        return await handleWriteFile(req, res, name);
+      }
+
+      if (method === 'GET' && subPath === 'stats') {
+        return await handleSandboxStats(req, res, name);
+      }
+
+      if (method === 'GET' && subPath === 'git/status') {
+        return await handleGitStatus(req, res, name);
+      }
+
+      if (method === 'POST' && subPath === 'git/push') {
+        return await handleGitPush(req, res, name);
+      }
+
+      if (method === 'POST' && subPath === 'git/checkout') {
+        return await handleGitCheckout(req, res, name);
       }
     }
 
-    const filesListMatch = pathname.match(/^\/api\/sandboxes\/([a-zA-Z0-9_-]+)\/files$/);
-    if (filesListMatch && method === 'GET') {
-      const name = filesListMatch[1];
-      const queryPath = url.searchParams.get('path') || '/';
-      return await handleListFiles(req, res, name, queryPath);
+    // Also match bare sandbox name (no sub-path) for DELETE
+    const destroyMatch = pathname.match(/^\/api\/sandboxes\/([a-zA-Z0-9_-]+)$/);
+    if (destroyMatch && method === 'DELETE') {
+      return await handleDestroySandbox(req, res, destroyMatch[1]);
     }
 
-    const fileReadMatch = pathname.match(/^\/api\/sandboxes\/([a-zA-Z0-9_-]+)\/files\/read$/);
-    if (fileReadMatch && method === 'GET') {
-      const name = fileReadMatch[1];
-      const queryPath = url.searchParams.get('path') || '';
-      return await handleReadFile(req, res, name, queryPath);
-    }
-
-    const fileWriteMatch = pathname.match(/^\/api\/sandboxes\/([a-zA-Z0-9_-]+)\/files\/write$/);
-    if (fileWriteMatch && method === 'PUT') {
-      const name = fileWriteMatch[1];
-      return await handleWriteFile(req, res, name);
-    }
+    // --- Domain & Stats routes ---
 
     if (method === 'GET' && pathname === '/api/domains') {
       return await handleListDomains(req, res);
@@ -454,12 +782,7 @@ async function handleRequest(req, res) {
       return await handleSystemStats(req, res);
     }
 
-    const sandboxStatsMatch = pathname.match(/^\/api\/sandboxes\/([a-zA-Z0-9_-]+)\/stats$/);
-    if (sandboxStatsMatch && method === 'GET') {
-      const name = sandboxStatsMatch[1];
-      return await handleSandboxStats(req, res, name);
-    }
-
+    // --- Static fallback ---
     return serveStatic(req, res);
   } catch (e) {
     sendError(res, 500, e.message || 'Internal server error');

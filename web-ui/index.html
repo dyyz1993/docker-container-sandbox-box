@@ -6,24 +6,33 @@
 <title>Sandbox Box</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#1a1a2e;--card:#16213e;--accent:#0f3460;--highlight:#e94560;--text:#e0e0e0;--text-dim:#8892a4;--green:#4caf50;--red:#f44336;--blue:#2196f3;--border:#1e3a5f;--radius:8px;--shadow:0 2px 8px rgba(0,0,0,0.3)}
-html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+:root{--bg:#1a1a2e;--card:#16213e;--accent:#0f3460;--highlight:#e94560;--text:#e0e0e0;--text-dim:#8892a4;--green:#4caf50;--red:#f44336;--blue:#2196f3;--orange:#ff9800;--border:#1e3a5f;--radius:8px;--shadow:0 2px 8px rgba(0,0,0,0.3)}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
 a{color:var(--blue);text-decoration:none}
 a:hover{text-decoration:underline}
 
-.header{background:var(--card);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:100}
+.header{background:var(--card);border-bottom:1px solid var(--border);padding:10px 20px;position:sticky;top:0;z-index:100}
+.header-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
 .header h1{font-size:20px;font-weight:700;color:var(--highlight);white-space:nowrap}
 .stats-bar{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text-dim)}
 .stats-bar .stat{display:flex;align-items:center;gap:4px}
 .stats-bar .stat-value{color:var(--text);font-weight:600}
-.stats-bar .stat-value.warn{color:#ff9800}
+.stats-bar .stat-value.warn{color:var(--orange)}
 .stats-bar .stat-value.crit{color:var(--red)}
 
-.main{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;height:calc(100vh - 56px);overflow:hidden}
-@media(max-width:900px){.main{grid-template-columns:1fr;height:auto;overflow:auto}}
+.tabs{display:flex;gap:0;margin-top:10px;border-bottom:2px solid var(--border)}
+.tab-btn{padding:8px 20px;background:transparent;border:none;color:var(--text-dim);font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.2s}
+.tab-btn:hover{color:var(--text);background:rgba(15,52,96,0.2)}
+.tab-btn.active{color:var(--highlight);border-bottom-color:var(--highlight)}
+
+.tab-panel{display:none;height:calc(100vh - 100px);overflow:hidden}
+.tab-panel.active{display:block}
+
+.main-split{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;height:100%;overflow:hidden}
+@media(max-width:900px){.main-split{grid-template-columns:1fr;height:auto;overflow:auto}}
 
 .panel{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.panel-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-header{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .panel-header h2{font-size:15px;font-weight:600}
 .panel-body{flex:1;overflow-y:auto;padding:0}
 
@@ -35,25 +44,31 @@ a:hover{text-decoration:underline}
 .btn-sm{padding:3px 8px;font-size:11px}
 .btn-ghost{background:transparent;color:var(--text-dim);border:1px solid var(--border)}
 .btn-ghost:hover{background:var(--accent);color:#fff}
+.btn-orange{background:var(--orange);color:#fff}
+.btn-orange:hover{background:#e68900}
 
-.create-form{display:none;align-items:center;gap:8px;padding:10px 16px;background:rgba(15,52,96,0.3);border-bottom:1px solid var(--border)}
-.create-form.active{display:flex}
-.create-form input{flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none}
-.create-form input:focus{border-color:var(--highlight)}
+.inline-form{display:none;align-items:center;gap:8px;padding:10px 16px;background:rgba(15,52,96,0.3);border-bottom:1px solid var(--border)}
+.inline-form.active{display:flex}
+.inline-form input{flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;outline:none}
+.inline-form input:focus{border-color:var(--highlight)}
 
-.sandbox-table{width:100%;border-collapse:collapse}
-.sandbox-table th{text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;color:var(--text-dim);font-weight:600;background:rgba(15,52,96,0.2);border-bottom:1px solid var(--border);position:sticky;top:0}
-.sandbox-table td{padding:8px 12px;border-bottom:1px solid rgba(30,58,95,0.5);font-size:13px;vertical-align:middle}
-.sandbox-table tr:hover td{background:rgba(15,52,96,0.15)}
-.sandbox-table tr.selected td{background:rgba(233,69,96,0.1);border-bottom-color:var(--highlight)}
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;color:var(--text-dim);font-weight:600;background:rgba(15,52,96,0.2);border-bottom:1px solid var(--border);position:sticky;top:0}
+.data-table td{padding:8px 12px;border-bottom:1px solid rgba(30,58,95,0.5);font-size:13px;vertical-align:middle}
+.data-table tr:hover td{background:rgba(15,52,96,0.15)}
+.data-table tr.selected td{background:rgba(233,69,96,0.1);border-bottom-color:var(--highlight)}
+.data-table tr.expanded td{background:rgba(15,52,96,0.1)}
 
 .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
 .badge-green{background:rgba(76,175,80,0.2);color:var(--green)}
 .badge-red{background:rgba(244,67,54,0.2);color:var(--red)}
 .badge-gray{background:rgba(136,146,164,0.2);color:var(--text-dim)}
+.badge-blue{background:rgba(33,150,243,0.2);color:var(--blue)}
+.badge-terminal{background:rgba(76,175,80,0.2);color:var(--green)}
+.badge-orange{background:rgba(255,152,0,0.2);color:var(--orange)}
 
-.clickable-name{cursor:pointer;color:var(--blue)}
-.clickable-name:hover{text-decoration:underline}
+.clickable{cursor:pointer;color:var(--blue)}
+.clickable:hover{text-decoration:underline}
 
 .empty-state{padding:40px;text-align:center;color:var(--text-dim)}
 .empty-state .icon{font-size:40px;margin-bottom:8px}
@@ -96,76 +111,163 @@ a:hover{text-decoration:underline}
 .spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--highlight);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;flex:1;max-width:60px}
-.progress-fill{height:100%;border-radius:2px;transition:width 0.5s ease}
-.progress-fill.green{background:var(--green)}
-.progress-fill.yellow{background:#ff9800}
-.progress-fill.red{background:var(--red)}
-
 .domain-section{border-top:1px solid var(--border)}
 .domain-header{padding:10px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;font-size:13px;font-weight:600;background:rgba(15,52,96,0.15)}
 .domain-header:hover{background:rgba(15,52,96,0.3)}
 .domain-header .toggle{font-size:10px;transition:transform 0.2s}
 .domain-header .toggle.collapsed{transform:rotate(-90deg)}
-.domain-body{overflow-y:auto;max-height:240px}
+.domain-body{overflow-y:auto;max-height:200px}
 .domain-body.collapsed{display:none}
-.domain-table{width:100%;border-collapse:collapse}
-.domain-table th{text-align:left;padding:6px 12px;font-size:10px;text-transform:uppercase;color:var(--text-dim);font-weight:600;background:rgba(15,52,96,0.1);border-bottom:1px solid var(--border);position:sticky;top:0}
-.domain-table td{padding:5px 12px;border-bottom:1px solid rgba(30,58,95,0.3);font-size:12px;vertical-align:middle}
-.domain-table tr:hover td{background:rgba(15,52,96,0.15)}
-.badge-blue{background:rgba(33,150,243,0.2);color:var(--blue)}
-.badge-terminal{background:rgba(76,175,80,0.2);color:var(--green)}
+
+.workspace-section{padding:12px 16px;background:rgba(15,52,96,0.1);border-bottom:1px solid var(--border)}
+.workspace-section h3{font-size:13px;margin-bottom:10px;color:var(--text-dim)}
+.ws-card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:8px}
+.ws-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.ws-card-name{font-weight:600;font-size:13px}
+.ws-card-actions{display:flex;gap:6px}
+.ws-card-info{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-dim)}
+.ws-card-info span{display:flex;align-items:center;gap:3px}
+.git-status{margin-top:8px;padding:8px 10px;background:rgba(26,26,46,0.5);border-radius:4px;font-size:11px;font-family:'SF Mono','Fira Code','Consolas',monospace}
+.git-status .git-branch{color:var(--green);font-weight:600}
+.git-status .git-files{margin-top:4px;color:var(--text-dim)}
+.git-status .git-files div{padding:1px 0}
+
+.push-form{display:none;margin-top:8px;gap:6px;align-items:center}
+.push-form.active{display:flex}
+.push-form input{flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:12px;outline:none;font-family:'SF Mono','Fira Code','Consolas',monospace}
+.push-form input:focus{border-color:var(--highlight)}
+
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:200}
+.confirm-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:400px;width:90%;box-shadow:var(--shadow)}
+.confirm-box h3{margin-bottom:12px;font-size:16px}
+.confirm-box p{margin-bottom:16px;color:var(--text-dim);font-size:13px}
+.confirm-box .confirm-actions{display:flex;gap:8px;justify-content:flex-end}
+
+.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;flex:1;max-width:60px}
+.progress-fill{height:100%;border-radius:2px;transition:width 0.5s ease}
+.progress-fill.green{background:var(--green)}
+.progress-fill.yellow{background:var(--orange)}
+.progress-fill.red{background:var(--red)}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>Sandbox Box</h1>
-  <div class="stats-bar" id="statsBar">
-    <div class="stat">CPU <span class="stat-value" id="statCpu">-</span></div>
-    <div class="stat">MEM <span class="stat-value" id="statMem">-</span></div>
-    <div class="stat">DISK <span class="stat-value" id="statDisk">-</span></div>
-    <div class="stat">UP <span class="stat-value" id="statUptime">-</span></div>
-    <div class="stat">BOXES <span class="stat-value" id="statCount">-</span></div>
+  <div class="header-row">
+    <h1>Sandbox Box</h1>
+    <div class="stats-bar" id="statsBar">
+      <div class="stat">CPU <span class="stat-value" id="statCpu">-</span></div>
+      <div class="stat">MEM <span class="stat-value" id="statMem">-</span></div>
+      <div class="stat">DISK <span class="stat-value" id="statDisk">-</span></div>
+      <div class="stat">UP <span class="stat-value" id="statUptime">-</span></div>
+      <div class="stat">BOXES <span class="stat-value" id="statCount">-</span></div>
+    </div>
+  </div>
+  <div class="tabs" id="tabNav">
+    <button class="tab-btn active" data-tab="sandboxes">Sandboxes</button>
+    <button class="tab-btn" data-tab="projects">Projects</button>
+    <button class="tab-btn" data-tab="users">Users</button>
   </div>
 </div>
 
-<div class="main">
-  <div class="panel" id="leftPanel">
-    <div class="panel-header">
-      <h2>Sandboxes</h2>
-      <button class="btn btn-primary btn-sm" id="btnCreate">+ Create</button>
-    </div>
-    <div class="create-form" id="createForm">
-      <input type="text" id="createName" placeholder="Sandbox name (alphanumeric, hyphens)" maxlength="50" />
-      <button class="btn btn-primary btn-sm" id="btnCreateSubmit">Create</button>
-      <button class="btn btn-ghost btn-sm" id="btnCreateCancel">Cancel</button>
-    </div>
-    <div class="panel-body" id="sandboxList">
-      <div class="loading"><div class="spinner"></div>Loading...</div>
-    </div>
-    <div class="domain-section" id="domainSection">
-      <div class="domain-header" id="domainHeader">
-        <span>Domain Mappings (<span id="domainCount">0</span>)</span>
-        <span class="toggle" id="domainToggle">&#9660;</span>
+<div class="tab-panel active" id="panel-sandboxes">
+  <div class="main-split">
+    <div class="panel" id="sb-left">
+      <div class="panel-header">
+        <h2>Sandboxes</h2>
+        <button class="btn btn-primary btn-sm" id="sb-btnCreate">+ Create</button>
       </div>
-      <div class="domain-body" id="domainBody">
-        <table class="domain-table">
-          <thead><tr><th>Domain</th><th>Sandbox</th><th>Target</th><th>Type</th></tr></thead>
-          <tbody id="domainTableBody"></tbody>
-        </table>
+      <div class="inline-form" id="sb-createForm">
+        <input type="text" id="sb-createName" placeholder="Sandbox name (alphanumeric, hyphens)" maxlength="50" />
+        <button class="btn btn-primary btn-sm" id="sb-btnCreateSubmit">Create</button>
+        <button class="btn btn-ghost btn-sm" id="sb-btnCreateCancel">Cancel</button>
+      </div>
+      <div class="panel-body" id="sb-list">
+        <div class="loading"><div class="spinner"></div>Loading...</div>
+      </div>
+      <div class="domain-section" id="domainSection">
+        <div class="domain-header" id="domainHeader">
+          <span>Domain Mappings (<span id="domainCount">0</span>)</span>
+          <span class="toggle" id="domainToggle">&#9660;</span>
+        </div>
+        <div class="domain-body" id="domainBody">
+          <table class="data-table">
+            <thead><tr><th>Domain</th><th>Sandbox</th><th>Target</th><th>Type</th></tr></thead>
+            <tbody id="domainTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="panel" id="sb-right">
+      <div class="panel-header">
+        <h2 id="sb-rightTitle">Select a Sandbox</h2>
+      </div>
+      <div class="panel-body" id="sb-rightContent">
+        <div class="empty-state">
+          <div class="icon">&#128230;</div>
+          <div>Click a sandbox name to browse files</div>
+        </div>
       </div>
     </div>
   </div>
+</div>
 
-  <div class="panel" id="rightPanel">
-    <div class="panel-header">
-      <h2 id="rightTitle">Select a Sandbox</h2>
+<div class="tab-panel" id="panel-projects">
+  <div class="main-split">
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Projects</h2>
+        <button class="btn btn-primary btn-sm" id="pj-btnCreate">+ Create Project</button>
+      </div>
+      <div class="inline-form" id="pj-createForm">
+        <input type="text" id="pj-createName" placeholder="Project name" maxlength="50" />
+        <input type="text" id="pj-createRepo" placeholder="Git repo URL (https://...)" />
+        <button class="btn btn-primary btn-sm" id="pj-btnCreateSubmit">Create</button>
+        <button class="btn btn-ghost btn-sm" id="pj-btnCreateCancel">Cancel</button>
+      </div>
+      <div class="panel-body" id="pj-list">
+        <div class="loading"><div class="spinner"></div>Loading...</div>
+      </div>
     </div>
-    <div class="panel-body" id="rightContent">
-      <div class="empty-state">
-        <div class="icon">&#128230;</div>
-        <div>Click a sandbox name to browse files</div>
+    <div class="panel" id="pj-detail">
+      <div class="panel-header">
+        <h2 id="pj-detailTitle">Project Detail</h2>
+      </div>
+      <div class="panel-body" id="pj-detailContent">
+        <div class="empty-state">
+          <div class="icon">&#128193;</div>
+          <div>Select a project to view workspaces</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-panel" id="panel-users">
+  <div class="main-split">
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Users</h2>
+        <button class="btn btn-primary btn-sm" id="usr-btnCreate">+ Create User</button>
+      </div>
+      <div class="inline-form" id="usr-createForm">
+        <input type="text" id="usr-createName" placeholder="User name" maxlength="50" />
+        <button class="btn btn-primary btn-sm" id="usr-btnCreateSubmit">Create</button>
+        <button class="btn btn-ghost btn-sm" id="usr-btnCreateCancel">Cancel</button>
+      </div>
+      <div class="panel-body" id="usr-list">
+        <div class="loading"><div class="spinner"></div>Loading...</div>
+      </div>
+    </div>
+    <div class="panel" id="usr-detail">
+      <div class="panel-header">
+        <h2 id="usr-detailTitle">User Detail</h2>
+      </div>
+      <div class="panel-body" id="usr-detailContent">
+        <div class="empty-state">
+          <div class="icon">&#128100;</div>
+          <div>Select a user to view details</div>
+        </div>
       </div>
     </div>
   </div>
@@ -174,67 +276,57 @@ a:hover{text-decoration:underline}
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
-const $ = (s, p) => (p || document).querySelector(s);
-const $$ = (s, p) => (p || document).querySelectorAll(s);
+var $ = function(s, p) { return (p || document).querySelector(s); };
+var $$ = function(s, p) { return (p || document).querySelectorAll(s); };
 
 function esc(s) {
   if (s == null) return '';
-  const d = document.createElement('div');
+  var d = document.createElement('div');
   d.textContent = String(s);
   return d.innerHTML;
 }
 
 function formatBytes(b) {
   if (!b || b === 0) return '0 B';
-  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(b) / Math.log(1024));
+  var u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  var i = Math.floor(Math.log(b) / Math.log(1024));
   return (b / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + u[i];
 }
 
 function formatUptime(s) {
   if (!s) return '-';
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const parts = [];
+  var d = Math.floor(s / 86400);
+  var h = Math.floor((s % 86400) / 3600);
+  var m = Math.floor((s % 3600) / 60);
+  var parts = [];
   if (d > 0) parts.push(d + 'd');
   if (h > 0) parts.push(h + 'h');
   parts.push(m + 'm');
   return parts.join(' ');
 }
 
-function toast(msg, type = 'info') {
-  const el = document.createElement('div');
+function toast(msg, type) {
+  type = type || 'info';
+  var el = document.createElement('div');
   el.className = 'toast toast-' + type;
   el.textContent = msg;
   $('#toastContainer').appendChild(el);
-  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3500);
+  setTimeout(function() {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 0.3s';
+    setTimeout(function() { el.remove(); }, 300);
+  }, 3500);
 }
 
-async function api(url, opts = {}) {
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...opts
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
-  return data;
-}
-
-let selectedSandbox = null;
-let currentPath = '/';
-let currentFile = null;
-let editMode = false;
-let originalContent = '';
-
-function getTerminalUrl(sandboxDomain) {
-  if (!sandboxDomain) return '#';
-  var parts = sandboxDomain.split('.');
-  if (parts.length >= 2) {
-    parts[0] = 'terminal-' + parts[0];
-    return 'https://' + parts.join('.') + ':8443';
-  }
-  return '#';
+function api(url, opts) {
+  opts = opts || {};
+  return fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
+    .then(function(res) {
+      return res.json().then(function(data) {
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+        return data;
+      });
+    });
 }
 
 function statusBadge(status) {
@@ -243,12 +335,57 @@ function statusBadge(status) {
   return '<span class="badge badge-gray">' + esc(status) + '</span>';
 }
 
+function terminalUrl(name) {
+  return 'https://terminal-' + name + '.sandbox.19930810.xyz:8443';
+}
+
+function appUrl(name) {
+  return 'https://' + name + '.sandbox.19930810.xyz:8443';
+}
+
 function cpuClass(p) { return p > 80 ? 'crit' : p > 50 ? 'warn' : ''; }
 function memClass(p) { return p > 90 ? 'crit' : p > 70 ? 'warn' : ''; }
 
-async function loadStats() {
-  try {
-    const s = await api('/api/stats');
+var activeTab = 'sandboxes';
+var refreshTimer = null;
+var confirmCb = null;
+
+function switchTab(tab) {
+  activeTab = tab;
+  $$('.tab-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
+  $$('.tab-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'panel-' + tab); });
+  if (tab === 'sandboxes') renderSandboxes();
+  else if (tab === 'projects') renderProjects();
+  else if (tab === 'users') renderUsers();
+}
+
+$('#tabNav').addEventListener('click', function(e) {
+  var btn = e.target.closest('.tab-btn');
+  if (btn) switchTab(btn.dataset.tab);
+});
+
+function showConfirm(title, msg, yesLabel, yesClass, cb) {
+  var old = $('.confirm-overlay');
+  if (old) old.remove();
+  var overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = '<div class="confirm-box">' +
+    '<h3>' + esc(title) + '</h3>' +
+    '<p>' + esc(msg) + '</p>' +
+    '<div class="confirm-actions">' +
+    '<button class="btn btn-ghost btn-sm" id="confirmNo">Cancel</button>' +
+    '<button class="btn ' + (yesClass || 'btn-danger') + ' btn-sm" id="confirmYes">' + esc(yesLabel || 'Confirm') + '</button>' +
+    '</div></div>';
+  document.body.appendChild(overlay);
+  $('#confirmYes').addEventListener('click', function() { overlay.remove(); cb(); });
+  $('#confirmNo').addEventListener('click', function() { overlay.remove(); });
+  overlay.addEventListener('click', function(ev) { if (ev.target === overlay) overlay.remove(); });
+}
+
+/* ========== Stats ========== */
+
+function loadStats() {
+  return api('/api/stats').then(function(s) {
     $('#statCpu').textContent = s.cpu.percent + '%';
     $('#statCpu').className = 'stat-value ' + cpuClass(s.cpu.percent);
     $('#statMem').textContent = s.memory.percent + '%';
@@ -257,154 +394,178 @@ async function loadStats() {
     $('#statDisk').className = 'stat-value ' + (s.disk.percent > 90 ? 'crit' : s.disk.percent > 70 ? 'warn' : '');
     $('#statUptime').textContent = formatUptime(s.uptime);
     $('#statCount').textContent = s.sandboxCount;
-  } catch (e) { /* silent */ }
+  }).catch(function() {});
 }
 
-async function loadSandboxes() {
-  const container = $('#sandboxList');
-  try {
-    const boxes = await api('/api/sandboxes');
+/* ========== Sandboxes Tab ========== */
+
+var selectedSandbox = null;
+var sbCurrentPath = '/';
+var sbCurrentFile = null;
+var sbEditMode = false;
+var sbOriginalContent = '';
+
+function loadDomains() {
+  return api('/api/domains').then(function(domains) {
+    $('#domainCount').textContent = domains.length;
+    var tbody = $('#domainTableBody');
+    if (!domains.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:16px">No domain mappings</td></tr>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < domains.length; i++) {
+      var d = domains[i];
+      var typeBadge = d.type === 'terminal'
+        ? '<span class="badge badge-terminal">terminal</span>'
+        : '<span class="badge badge-blue">app</span>';
+      html += '<tr><td><a href="https://' + esc(d.domain) + ':8443" target="_blank">' + esc(d.domain) + '</a></td>' +
+        '<td>' + esc(d.sandbox) + '</td><td>' + esc(d.target) + '</td><td>' + typeBadge + '</td></tr>';
+    }
+    tbody.innerHTML = html;
+  }).catch(function() {});
+}
+
+function renderSandboxes() {
+  var container = $('#sb-list');
+  return api('/api/sandboxes').then(function(boxes) {
     if (!boxes.length) {
       container.innerHTML = '<div class="empty-state"><div class="icon">&#128230;</div><div>No sandboxes found</div></div>';
       return;
     }
-    let html = '<table class="sandbox-table"><thead><tr><th>Name</th><th>Status</th><th>Port</th><th>PID</th><th>Actions</th></tr></thead><tbody>';
-    for (const b of boxes) {
-      const sel = selectedSandbox === b.name ? ' selected' : '';
-      html += '<tr class="' + sel + '" data-name="' + esc(b.name) + '">';
-      html += '<td><span class="clickable-name" data-action="select" data-name="' + esc(b.name) + '">' + esc(b.name) + '</span></td>';
-      html += '<td>' + statusBadge(b.status) + '</td>';
-      html += '<td>' + esc(b.port || '-') + '</td>';
-      html += '<td>' + esc(b.pid || '-') + '</td>';
-      html += '<td>';
+    var html = '<table class="data-table"><thead><tr><th>Name</th><th>Status</th><th>Port</th><th>PID</th><th>Actions</th></tr></thead><tbody>';
+    for (var i = 0; i < boxes.length; i++) {
+      var b = boxes[i];
+      var sel = selectedSandbox === b.name ? ' selected' : '';
+      html += '<tr class="' + sel + '">' +
+        '<td><span class="clickable" data-sb-action="select" data-sb-name="' + esc(b.name) + '">' + esc(b.name) + '</span></td>' +
+        '<td>' + statusBadge(b.status) + '</td>' +
+        '<td>' + esc(b.port || '-') + '</td>' +
+        '<td>' + esc(b.pid || '-') + '</td>' +
+        '<td>';
       if (b.status === 'running') {
-        html += '<a href="' + esc(getTerminalUrl(b.domain)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a> ';
+        html += '<a href="' + esc(terminalUrl(b.name)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a> ';
       }
-      html += '<button class="btn btn-danger btn-sm" data-action="destroy" data-name="' + esc(b.name) + '">Destroy</button>';
+      html += '<button class="btn btn-danger btn-sm" data-sb-action="destroy" data-sb-name="' + esc(b.name) + '">Destroy</button>';
       html += '</td></tr>';
     }
     html += '</tbody></table>';
     container.innerHTML = html;
-  } catch (e) {
+  }).catch(function(e) {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
-  }
+  });
 }
 
-async function loadSandboxStats(name) {
-  try {
-    const s = await api('/api/sandboxes/' + encodeURIComponent(name) + '/stats');
-    let html = '<div class="sandbox-stats">';
-    html += '<div class="s-stat"><span class="s-stat-label">CPU</span><span class="s-stat-value">' + s.cpu.toFixed(1) + '%</span></div>';
-    html += '<div class="s-stat"><span class="s-stat-label">Memory</span><span class="s-stat-value">' + formatBytes(s.memory.current) + (s.memory.max ? ' / ' + formatBytes(s.memory.max) : '') + '</span></div>';
-    html += '<div class="s-stat"><span class="s-stat-label">Processes</span><span class="s-stat-value">' + s.processes + '</span></div>';
-    html += '</div>';
-    return html;
-  } catch (e) {
-    return '<div class="sandbox-stats"><div class="s-stat"><span class="s-stat-value" style="color:var(--text-dim)">Stats unavailable</span></div></div>';
-  }
+function loadSandboxStatsHtml(name) {
+  return api('/api/sandboxes/' + encodeURIComponent(name) + '/stats')
+    .then(function(s) {
+      return '<div class="sandbox-stats">' +
+        '<div class="s-stat"><span class="s-stat-label">CPU</span><span class="s-stat-value">' + s.cpu.toFixed(1) + '%</span></div>' +
+        '<div class="s-stat"><span class="s-stat-label">Memory</span><span class="s-stat-value">' + formatBytes(s.memory.current) + (s.memory.max ? ' / ' + formatBytes(s.memory.max) : '') + '</span></div>' +
+        '<div class="s-stat"><span class="s-stat-label">Processes</span><span class="s-stat-value">' + s.processes + '</span></div>' +
+        '</div>';
+    }).catch(function() {
+      return '<div class="sandbox-stats"><div class="s-stat"><span class="s-stat-value" style="color:var(--text-dim)">Stats unavailable</span></div></div>';
+    });
 }
 
-async function loadFiles(name, dirPath) {
-  const container = $('#rightContent');
-  currentFile = null;
-  editMode = false;
+function sbLoadFiles(name, dirPath) {
+  var container = $('#sb-rightContent');
+  sbCurrentFile = null;
+  sbEditMode = false;
 
-  try {
-    const files = await api('/api/sandboxes/' + encodeURIComponent(name) + '/files?path=' + encodeURIComponent(dirPath));
-    let statsHtml = await loadSandboxStats(name);
-
-    let crumbs = '<span data-action="crumb" data-path="/">/</span>';
-    if (dirPath !== '/') {
-      const parts = dirPath.split('/').filter(Boolean);
-      let accumulated = '';
-      for (let i = 0; i < parts.length; i++) {
-        accumulated += '/' + parts[i];
-        if (i < parts.length - 1) {
-          crumbs += '<span data-action="crumb" data-path="' + esc(accumulated) + '">' + esc(parts[i]) + '</span>/';
-        } else {
-          crumbs += '<span class="current">' + esc(parts[i]) + '</span>';
+  return api('/api/sandboxes/' + encodeURIComponent(name) + '/files?path=' + encodeURIComponent(dirPath))
+    .then(function(files) {
+      return loadSandboxStatsHtml(name).then(function(statsHtml) {
+        var crumbs = '<span data-sb-action="crumb" data-sb-path="/">/</span>';
+        if (dirPath !== '/') {
+          var parts = dirPath.split('/').filter(Boolean);
+          var accumulated = '';
+          for (var i = 0; i < parts.length; i++) {
+            accumulated += '/' + parts[i];
+            if (i < parts.length - 1) {
+              crumbs += '<span data-sb-action="crumb" data-sb-path="' + esc(accumulated) + '">' + esc(parts[i]) + '</span>/';
+            } else {
+              crumbs += '<span class="current">' + esc(parts[i]) + '</span>';
+            }
+          }
         }
+
+        var html = statsHtml;
+        html += '<div class="breadcrumb">' + crumbs + '</div>';
+        html += '<ul class="file-list">';
+        if (dirPath !== '/') {
+          html += '<li class="file-item" data-sb-action="crumb" data-sb-path="' + esc(dirPath.split('/').slice(0, -1).join('/') || '/') + '">' +
+            '<span class="file-icon">&#128193;</span><span class="file-name">..</span><span class="file-size"></span><span class="file-mtime"></span></li>';
+        }
+        for (var j = 0; j < files.length; j++) {
+          var f = files[j];
+          var icon = f.type === 'directory' ? '&#128193;' : '&#128196;';
+          var fpath = dirPath === '/' ? '/' + f.name : dirPath + '/' + f.name;
+          var action = f.type === 'directory' ? 'data-sb-action="opendir" data-sb-path="' + esc(fpath) + '"' : 'data-sb-action="openfile" data-sb-path="' + esc(fpath) + '"';
+          html += '<li class="file-item" ' + action + '>' +
+            '<span class="file-icon">' + icon + '</span>' +
+            '<span class="file-name">' + esc(f.name) + '</span>' +
+            '<span class="file-size">' + (f.type === 'file' ? formatBytes(f.size) : '') + '</span>' +
+            '<span class="file-mtime">' + (f.mtime ? new Date(f.mtime).toLocaleString() : '') + '</span></li>';
+        }
+        if (!files.length && dirPath === '/') {
+          html += '<li class="file-item" style="cursor:default;color:var(--text-dim);justify-content:center">Empty workspace</li>';
+        }
+        html += '</ul>';
+        container.innerHTML = html;
+        sbCurrentPath = dirPath;
+      });
+    }).catch(function(e) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
+    });
+}
+
+function sbOpenFile(name, filePath) {
+  var container = $('#sb-rightContent');
+  sbCurrentFile = filePath;
+  sbEditMode = false;
+
+  fetch('/api/sandboxes/' + encodeURIComponent(name) + '/files/read?path=' + encodeURIComponent(filePath))
+    .then(function(res) {
+      if (!res.ok) return res.json().then(function(err) { throw new Error(err.error || 'Read failed'); });
+      return res.text();
+    }).then(function(content) {
+      sbOriginalContent = content;
+
+      var html = '<div class="file-viewer">' +
+        '<div class="file-toolbar">' +
+        '<button class="btn btn-ghost btn-sm" data-sb-action="backfiles">Back</button>' +
+        '<span class="file-title">' + esc(filePath) + '</span>' +
+        '<button class="btn btn-primary btn-sm" id="sb-btnEdit" data-sb-action="toggleEdit">Edit</button>' +
+        '<button class="btn btn-primary btn-sm" id="sb-btnSave" data-sb-action="saveFile" style="display:none">Save</button>' +
+        '<button class="btn btn-ghost btn-sm" id="sb-btnCancel" data-sb-action="cancelEdit" style="display:none">Cancel</button>' +
+        '</div>';
+
+      var lines = content.split('\n');
+      var codeHtml = '';
+      for (var i = 0; i < lines.length; i++) {
+        codeHtml += '<span class="code-line"><span class="ln">' + (i + 1) + '</span>' + esc(lines[i]) + '</span>';
       }
-    }
 
-    let html = statsHtml;
-    html += '<div class="breadcrumb">' + crumbs + '</div>';
-    html += '<ul class="file-list">';
-    if (dirPath !== '/') {
-      html += '<li class="file-item" data-action="crumb" data-path="' + esc(dirPath.split('/').slice(0, -1).join('/') || '/') + '">';
-      html += '<span class="file-icon">&#128193;</span><span class="file-name">..</span><span class="file-size"></span><span class="file-mtime"></span></li>';
-    }
-    for (const f of files) {
-      const icon = f.type === 'directory' ? '&#128193;' : '&#128196;';
-      const action = f.type === 'directory' ? 'data-action="opendir" data-path="' + esc(dirPath === '/' ? '/' + f.name : dirPath + '/' + f.name) + '"' : 'data-action="openfile" data-path="' + esc(dirPath === '/' ? '/' + f.name : dirPath + '/' + f.name) + '"';
-      html += '<li class="file-item" ' + action + '>';
-      html += '<span class="file-icon">' + icon + '</span>';
-      html += '<span class="file-name">' + esc(f.name) + '</span>';
-      html += '<span class="file-size">' + (f.type === 'file' ? formatBytes(f.size) : '') + '</span>';
-      html += '<span class="file-mtime">' + (f.mtime ? new Date(f.mtime).toLocaleString() : '') + '</span>';
-      html += '</li>';
-    }
-    if (!files.length && dirPath === '/') {
-      html += '<li class="file-item" style="cursor:default;color:var(--text-dim);justify-content:center">Empty workspace</li>';
-    }
-    html += '</ul>';
-    container.innerHTML = html;
-    currentPath = dirPath;
-  } catch (e) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
-  }
+      html += '<div class="code-view" id="sb-codeView"><pre>' + codeHtml + '</pre></div>';
+      html += '<textarea class="edit-area" id="sb-editArea" style="display:none">' + esc(content) + '</textarea>';
+      html += '</div>';
+      container.innerHTML = html;
+    }).catch(function(e) {
+      toast(e.message, 'error');
+    });
 }
 
-async function openFile(name, filePath) {
-  const container = $('#rightContent');
-  currentFile = filePath;
-  editMode = false;
-
-  try {
-    const res = await fetch('/api/sandboxes/' + encodeURIComponent(name) + '/files/read?path=' + encodeURIComponent(filePath));
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to read file');
-    }
-    const content = await res.text();
-    originalContent = content;
-
-    const parts = filePath.split('/');
-    const fileName = parts[parts.length - 1];
-
-    let html = '<div class="file-viewer">';
-    html += '<div class="file-toolbar">';
-    html += '<button class="btn btn-ghost btn-sm" data-action="backfiles">Back</button>';
-    html += '<span class="file-title">' + esc(filePath) + '</span>';
-    html += '<button class="btn btn-primary btn-sm" id="btnEdit" data-action="toggleEdit">Edit</button>';
-    html += '<button class="btn btn-primary btn-sm" id="btnSave" data-action="saveFile" style="display:none">Save</button>';
-    html += '<button class="btn btn-ghost btn-sm" id="btnCancel" data-action="cancelEdit" style="display:none">Cancel</button>';
-    html += '</div>';
-
-    const lines = content.split('\n');
-    let codeHtml = '';
-    for (let i = 0; i < lines.length; i++) {
-      codeHtml += '<span class="code-line"><span class="ln">' + (i + 1) + '</span>' + esc(lines[i]) + '</span>';
-    }
-
-    html += '<div class="code-view" id="codeView"><pre>' + codeHtml + '</pre></div>';
-    html += '<textarea class="edit-area" id="editArea" style="display:none">' + esc(content) + '</textarea>';
-    html += '</div>';
-    container.innerHTML = html;
-  } catch (e) {
-    toast(e.message, 'error');
-  }
-}
-
-function toggleEdit() {
-  editMode = !editMode;
-  const codeView = $('#codeView');
-  const editArea = $('#editArea');
-  const btnEdit = $('#btnEdit');
-  const btnSave = $('#btnSave');
-  const btnCancel = $('#btnCancel');
-
-  if (editMode) {
+function sbToggleEdit() {
+  sbEditMode = !sbEditMode;
+  var codeView = $('#sb-codeView');
+  var editArea = $('#sb-editArea');
+  var btnEdit = $('#sb-btnEdit');
+  var btnSave = $('#sb-btnSave');
+  var btnCancel = $('#sb-btnCancel');
+  if (!codeView || !editArea) return;
+  if (sbEditMode) {
     codeView.style.display = 'none';
     editArea.style.display = 'block';
     editArea.focus();
@@ -420,183 +581,575 @@ function toggleEdit() {
   }
 }
 
-async function saveFile(name, filePath) {
-  const editArea = $('#editArea');
-  const content = editArea.value;
-  try {
-    await api('/api/sandboxes/' + encodeURIComponent(name) + '/files/write', {
-      method: 'PUT',
-      body: JSON.stringify({ path: filePath, content })
-    });
+function sbSaveFile() {
+  if (!selectedSandbox || !sbCurrentFile) return;
+  var editArea = $('#sb-editArea');
+  if (!editArea) return;
+  var content = editArea.value;
+  api('/api/sandboxes/' + encodeURIComponent(selectedSandbox) + '/files/write', {
+    method: 'PUT',
+    body: JSON.stringify({ path: sbCurrentFile, content: content })
+  }).then(function() {
     toast('File saved', 'success');
-    editMode = false;
-    await openFile(name, filePath);
-  } catch (e) {
-    toast(e.message, 'error');
-  }
+    sbEditMode = false;
+    sbOpenFile(selectedSandbox, sbCurrentFile);
+  }).catch(function(e) { toast(e.message, 'error'); });
 }
 
-function cancelEdit() {
-  editMode = false;
-  const codeView = $('#codeView');
-  const editArea = $('#editArea');
-  const btnEdit = $('#btnEdit');
-  const btnSave = $('#btnSave');
-  const btnCancel = $('#btnCancel');
-  codeView.style.display = '';
-  editArea.style.display = 'none';
-  editArea.value = originalContent;
-  btnEdit.style.display = '';
-  btnSave.style.display = 'none';
-  btnCancel.style.display = 'none';
+function sbCancelEdit() {
+  sbEditMode = false;
+  var codeView = $('#sb-codeView');
+  var editArea = $('#sb-editArea');
+  var btnEdit = $('#sb-btnEdit');
+  var btnSave = $('#sb-btnSave');
+  var btnCancel = $('#sb-btnCancel');
+  if (codeView) codeView.style.display = '';
+  if (editArea) { editArea.style.display = 'none'; editArea.value = sbOriginalContent; }
+  if (btnEdit) btnEdit.style.display = '';
+  if (btnSave) btnSave.style.display = 'none';
+  if (btnCancel) btnCancel.style.display = 'none';
 }
 
-async function selectSandbox(name) {
+function sbSelect(name) {
   selectedSandbox = name;
-  currentPath = '/';
-  $('#rightTitle').textContent = name;
-  await loadSandboxes();
-  await loadFiles(name, '/');
+  sbCurrentPath = '/';
+  $('#sb-rightTitle').textContent = name;
+  return renderSandboxes().then(function() {
+    return sbLoadFiles(name, '/');
+  });
 }
 
-async function destroySandbox(name) {
-  if (!confirm('Destroy sandbox "' + name + '"? This cannot be undone.')) return;
-  try {
-    await api('/api/sandboxes/' + encodeURIComponent(name), { method: 'DELETE' });
-    toast('Sandbox "' + name + '" destroyed', 'success');
-    if (selectedSandbox === name) {
-      selectedSandbox = null;
-      $('#rightTitle').textContent = 'Select a Sandbox';
-      $('#rightContent').innerHTML = '<div class="empty-state"><div class="icon">&#128230;</div><div>Click a sandbox name to browse files</div></div>';
-    }
-    await loadSandboxes();
-  } catch (e) {
-    toast(e.message, 'error');
-  }
+function sbDestroy(name) {
+  showConfirm('Destroy Sandbox', 'Destroy sandbox "' + name + '"? This cannot be undone.', 'Destroy', 'btn-danger', function() {
+    api('/api/sandboxes/' + encodeURIComponent(name), { method: 'DELETE' }).then(function() {
+      toast('Sandbox "' + name + '" destroyed', 'success');
+      if (selectedSandbox === name) {
+        selectedSandbox = null;
+        $('#sb-rightTitle').textContent = 'Select a Sandbox';
+        $('#sb-rightContent').innerHTML = '<div class="empty-state"><div class="icon">&#128230;</div><div>Click a sandbox name to browse files</div></div>';
+      }
+      renderSandboxes();
+    }).catch(function(e) { toast(e.message, 'error'); });
+  });
 }
 
-async function createSandbox() {
-  const input = $('#createName');
-  const name = input.value.trim();
+function sbCreate() {
+  var input = $('#sb-createName');
+  var name = input.value.trim();
   if (!name) return;
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    toast('Invalid name. Use alphanumeric, hyphens, underscores only.', 'error');
+    toast('Invalid name. Use alphanumeric, hyphens, underscores.', 'error');
     return;
   }
-  try {
-    const btn = $('#btnCreateSubmit');
-    btn.disabled = true;
-    btn.textContent = 'Creating...';
-    await api('/api/sandboxes', {
-      method: 'POST',
-      body: JSON.stringify({ name })
-    });
-    toast('Sandbox "' + name + '" created', 'success');
-    input.value = '';
-    $('#createForm').classList.remove('active');
-    await loadSandboxes();
-  } catch (e) {
-    toast(e.message, 'error');
-  } finally {
-    const btn = $('#btnCreateSubmit');
-    btn.disabled = false;
-    btn.textContent = 'Create';
-  }
+  var btn = $('#sb-btnCreateSubmit');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+  api('/api/sandboxes', { method: 'POST', body: JSON.stringify({ name: name }) })
+    .then(function() {
+      toast('Sandbox "' + name + '" created', 'success');
+      input.value = '';
+      $('#sb-createForm').classList.remove('active');
+      renderSandboxes();
+    }).catch(function(e) { toast(e.message, 'error'); })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Create'; });
 }
 
-document.addEventListener('click', async (e) => {
-  const target = e.target.closest('[data-action]');
-  if (!target) return;
-  const action = target.dataset.action;
-
-  if (action === 'select') {
-    await selectSandbox(target.dataset.name);
-  } else if (action === 'destroy') {
-    await destroySandbox(target.dataset.name);
-  } else if (action === 'opendir') {
-    if (selectedSandbox) {
-      currentPath = target.dataset.path;
-      await loadFiles(selectedSandbox, currentPath);
-    }
-  } else if (action === 'crumb') {
-    if (selectedSandbox) {
-      currentPath = target.dataset.path;
-      await loadFiles(selectedSandbox, currentPath);
-    }
-  } else if (action === 'openfile') {
-    if (selectedSandbox) {
-      await openFile(selectedSandbox, target.dataset.path);
-    }
-  } else if (action === 'backfiles') {
-    if (selectedSandbox) {
-      await loadFiles(selectedSandbox, currentPath);
-    }
-  } else if (action === 'toggleEdit') {
-    toggleEdit();
-  } else if (action === 'saveFile') {
-    if (selectedSandbox && currentFile) {
-      await saveFile(selectedSandbox, currentFile);
-    }
-  } else if (action === 'cancelEdit') {
-    cancelEdit();
-  }
-});
-
-$('#btnCreate').addEventListener('click', () => {
-  const form = $('#createForm');
+$('#sb-btnCreate').addEventListener('click', function() {
+  var form = $('#sb-createForm');
   form.classList.toggle('active');
-  if (form.classList.contains('active')) {
-    $('#createName').focus();
-  }
+  if (form.classList.contains('active')) $('#sb-createName').focus();
+});
+$('#sb-btnCreateCancel').addEventListener('click', function() {
+  $('#sb-createForm').classList.remove('active');
+  $('#sb-createName').value = '';
+});
+$('#sb-btnCreateSubmit').addEventListener('click', sbCreate);
+$('#sb-createName').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') sbCreate();
+  if (e.key === 'Escape') { $('#sb-createForm').classList.remove('active'); this.value = ''; }
 });
 
-$('#btnCreateCancel').addEventListener('click', () => {
-  $('#createForm').classList.remove('active');
-  $('#createName').value = '';
+$('#domainHeader').addEventListener('click', function() {
+  $('#domainBody').classList.toggle('collapsed');
+  $('#domainToggle').classList.toggle('collapsed');
 });
 
-$('#btnCreateSubmit').addEventListener('click', createSandbox);
-
-$('#createName').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') createSandbox();
-  if (e.key === 'Escape') {
-    $('#createForm').classList.remove('active');
-    $('#createName').value = '';
-  }
+document.addEventListener('click', function(e) {
+  var target = e.target.closest('[data-sb-action]');
+  if (!target) return;
+  var action = target.dataset.sbAction;
+  if (action === 'select') sbSelect(target.dataset.sbName);
+  else if (action === 'destroy') sbDestroy(target.dataset.sbName);
+  else if (action === 'opendir' && selectedSandbox) sbLoadFiles(selectedSandbox, target.dataset.sbPath);
+  else if (action === 'crumb' && selectedSandbox) sbLoadFiles(selectedSandbox, target.dataset.sbPath);
+  else if (action === 'openfile' && selectedSandbox) sbOpenFile(selectedSandbox, target.dataset.sbPath);
+  else if (action === 'backfiles' && selectedSandbox) sbLoadFiles(selectedSandbox, sbCurrentPath);
+  else if (action === 'toggleEdit') sbToggleEdit();
+  else if (action === 'saveFile') sbSaveFile();
+  else if (action === 'cancelEdit') sbCancelEdit();
 });
 
-async function loadDomains() {
-  try {
-    const domains = await api('/api/domains');
-    $('#domainCount').textContent = domains.length;
-    const tbody = $('#domainTableBody');
-    if (!domains.length) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:16px">No domain mappings found</td></tr>';
+/* ========== Projects Tab ========== */
+
+var selectedProject = null;
+
+function renderProjects() {
+  var container = $('#pj-list');
+  return api('/api/projects').then(function(projects) {
+    if (!projects.length) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#128193;</div><div>No projects found</div></div>';
       return;
     }
-    let html = '';
-    for (const d of domains) {
-      const typeBadge = d.type === 'terminal'
-        ? '<span class="badge badge-terminal">terminal</span>'
-        : '<span class="badge badge-blue">app</span>';
-      const domainLink = '<a href="https://' + esc(d.domain) + ':8443" target="_blank">' + esc(d.domain) + '</a>';
-      html += '<tr><td>' + domainLink + '</td><td>' + esc(d.sandbox) + '</td><td>' + esc(d.target) + '</td><td>' + typeBadge + '</td></tr>';
+    var html = '<table class="data-table"><thead><tr><th>Name</th><th>Repo</th><th>Workspaces</th><th>Actions</th></tr></thead><tbody>';
+    for (var i = 0; i < projects.length; i++) {
+      var p = projects[i];
+      var sel = selectedProject === p.name ? ' selected' : '';
+      var wsCount = (p.workspaces || []).length;
+      html += '<tr class="' + sel + '">' +
+        '<td><span class="clickable" data-pj-action="select" data-pj-name="' + esc(p.name) + '">' + esc(p.name) + '</span></td>' +
+        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.repoUrl || '-') + '</td>' +
+        '<td>' + wsCount + '</td>' +
+        '<td><button class="btn btn-danger btn-sm" data-pj-action="delete" data-pj-name="' + esc(p.name) + '">Delete</button></td>' +
+        '</tr>';
     }
-    tbody.innerHTML = html;
-  } catch (_) { /* silent */ }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }).catch(function(e) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
+  });
 }
 
-$('#domainHeader').addEventListener('click', () => {
-  const body = $('#domainBody');
-  const toggle = $('#domainToggle');
-  body.classList.toggle('collapsed');
-  toggle.classList.toggle('collapsed');
+function renderProjectDetail(projectName) {
+  selectedProject = projectName;
+  var container = $('#pj-detailContent');
+  $('#pj-detailTitle').textContent = projectName;
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading project...</div>';
+
+  return api('/api/projects').then(function(projects) {
+    var project = null;
+    for (var i = 0; i < projects.length; i++) {
+      if (projects[i].name === projectName) { project = projects[i]; break; }
+    }
+    if (!project) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>Project not found</div></div>';
+      return;
+    }
+
+    renderProjects();
+
+    var workspaces = project.workspaces || [];
+    var html = '<div style="padding:12px 16px;border-bottom:1px solid var(--border);background:rgba(15,52,96,0.15)">' +
+      '<div style="font-size:12px;color:var(--text-dim)">Repo: ' + esc(project.repoUrl || '-') + '</div>' +
+      '<div style="font-size:12px;color:var(--text-dim);margin-top:4px">Workspaces: ' + workspaces.length + '</div>' +
+      '</div>';
+
+    html += '<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">' +
+      '<button class="btn btn-primary btn-sm" data-pj-action="showCreateWs">+ Create Workspace</button>' +
+      '</div>';
+
+    html += '<div class="inline-form" id="pj-wsForm">' +
+      '<input type="text" id="pj-wsName" placeholder="Workspace name" maxlength="50" />' +
+      '<input type="text" id="pj-wsBranch" placeholder="Branch (optional, default: main)" />' +
+      '<button class="btn btn-primary btn-sm" id="pj-wsSubmit">Create</button>' +
+      '<button class="btn btn-ghost btn-sm" id="pj-wsCancel">Cancel</button>' +
+      '</div>';
+
+    if (!workspaces.length) {
+      html += '<div class="empty-state" style="padding:30px"><div>No workspaces yet. Create one above.</div></div>';
+    } else {
+      for (var j = 0; j < workspaces.length; j++) {
+        var ws = workspaces[j];
+        var wsName = ws.name || ws;
+        var wsDomain = ws.domain || wsName;
+        var wsBranch = ws.branch || 'main';
+        html += '<div class="ws-card" style="margin:12px 16px" data-pj-ws="' + esc(wsName) + '">' +
+          '<div class="ws-card-header">' +
+          '<span class="ws-card-name">' + esc(wsName) + '</span>' +
+          '<div class="ws-card-actions">' +
+          '<a href="' + esc(terminalUrl(wsName)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a>' +
+          '<a href="' + esc(appUrl(wsName)) + '" target="_blank" class="btn btn-ghost btn-sm">Open</a>' +
+          '<button class="btn btn-danger btn-sm" data-pj-action="destroyWs" data-pj-ws="' + esc(wsName) + '" data-pj-project="' + esc(projectName) + '">Destroy</button>' +
+          '</div></div>' +
+          '<div class="ws-card-info">' +
+          '<span>Branch: <strong>' + esc(wsBranch) + '</strong></span>' +
+          '<span>Domain: <a href="https://' + esc(wsDomain) + '.sandbox.19930810.xyz:8443" target="_blank">' + esc(wsDomain) + '</a></span>' +
+          '</div>' +
+          '<div class="git-status" id="git-' + esc(wsName) + '">Loading git status...</div>' +
+          '<div class="push-form" id="push-' + esc(wsName) + '">' +
+          '<input type="text" id="push-msg-' + esc(wsName) + '" placeholder="Commit message" />' +
+          '<button class="btn btn-primary btn-sm" data-pj-action="doPush" data-pj-ws="' + esc(wsName) + '">Push</button>' +
+          '<button class="btn btn-ghost btn-sm" data-pj-action="cancelPush" data-pj-ws="' + esc(wsName) + '">Cancel</button>' +
+          '</div>' +
+          '<div style="margin-top:6px;display:flex;gap:6px">' +
+          '<button class="btn btn-orange btn-sm" data-pj-action="showPush" data-pj-ws="' + esc(wsName) + '">Push Changes</button>' +
+          '</div>' +
+          '</div>';
+      }
+    }
+    container.innerHTML = html;
+
+    for (var k = 0; k < workspaces.length; k++) {
+      (function(w) {
+        var wName = w.name || w;
+        api('/api/sandboxes/' + encodeURIComponent(wName) + '/git/status')
+          .then(function(git) {
+            var el = document.getElementById('git-' + wName);
+            if (!el) return;
+            var gHtml = '<span class="git-branch">&#9432; ' + esc(git.branch || 'unknown') + '</span>';
+            if (git.modified && git.modified.length) {
+              gHtml += '<div class="git-files">Modified:';
+              for (var m = 0; m < git.modified.length; m++) {
+                gHtml += '<div>&#8226; ' + esc(git.modified[m]) + '</div>';
+              }
+              gHtml += '</div>';
+            }
+            if (git.ahead && git.ahead > 0) {
+              gHtml += ' <span style="color:var(--orange)">&#9650; ' + git.ahead + ' ahead</span>';
+            }
+            if (git.behind && git.behind > 0) {
+              gHtml += ' <span style="color:var(--red)">&#9660; ' + git.behind + ' behind</span>';
+            }
+            if ((!git.modified || !git.modified.length) && (!git.ahead || git.ahead === 0)) {
+              gHtml += ' <span style="color:var(--text-dim)">Clean</span>';
+            }
+            el.innerHTML = gHtml;
+          }).catch(function() {
+            var el = document.getElementById('git-' + wName);
+            if (el) el.innerHTML = '<span style="color:var(--text-dim)">Git status unavailable</span>';
+          });
+      })(workspaces[k]);
+    }
+  }).catch(function(e) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
+  });
+}
+
+function pjCreate() {
+  var nameInput = $('#pj-createName');
+  var repoInput = $('#pj-createRepo');
+  var name = nameInput.value.trim();
+  var repo = repoInput.value.trim();
+  if (!name) { toast('Project name required', 'error'); return; }
+  if (!repo) { toast('Repo URL required', 'error'); return; }
+  var btn = $('#pj-btnCreateSubmit');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+  api('/api/projects', { method: 'POST', body: JSON.stringify({ name: name, repoUrl: repo }) })
+    .then(function() {
+      toast('Project "' + name + '" created', 'success');
+      nameInput.value = '';
+      repoInput.value = '';
+      $('#pj-createForm').classList.remove('active');
+      renderProjects();
+    }).catch(function(e) { toast(e.message, 'error'); })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Create'; });
+}
+
+function pjDelete(name) {
+  showConfirm('Delete Project', 'Delete project "' + name + '"? All workspaces will be destroyed.', 'Delete', 'btn-danger', function() {
+    api('/api/projects/' + encodeURIComponent(name), { method: 'DELETE' })
+      .then(function() {
+        toast('Project "' + name + '" deleted', 'success');
+        if (selectedProject === name) {
+          selectedProject = null;
+          $('#pj-detailTitle').textContent = 'Project Detail';
+          $('#pj-detailContent').innerHTML = '<div class="empty-state"><div class="icon">&#128193;</div><div>Select a project to view workspaces</div></div>';
+        }
+        renderProjects();
+      }).catch(function(e) { toast(e.message, 'error'); });
+  });
+}
+
+function pjCreateWs(projectName) {
+  var nameInput = $('#pj-wsName');
+  var branchInput = $('#pj-wsBranch');
+  var wsName = nameInput.value.trim();
+  var branch = branchInput.value.trim();
+  if (!wsName) { toast('Workspace name required', 'error'); return; }
+  api('/api/sandboxes/clone', {
+    method: 'POST',
+    body: JSON.stringify({ name: wsName, project: projectName, branch: branch || 'main' })
+  }).then(function() {
+    toast('Workspace "' + wsName + '" created', 'success');
+    nameInput.value = '';
+    branchInput.value = '';
+    $('#pj-wsForm').classList.remove('active');
+    renderProjectDetail(projectName);
+  }).catch(function(e) { toast(e.message, 'error'); });
+}
+
+function pjDestroyWs(wsName, projectName) {
+  showConfirm('Destroy Workspace', 'Destroy workspace "' + wsName + '"?', 'Destroy', 'btn-danger', function() {
+    api('/api/sandboxes/' + encodeURIComponent(wsName), { method: 'DELETE' })
+      .then(function() {
+        toast('Workspace "' + wsName + '" destroyed', 'success');
+        renderProjectDetail(projectName);
+      }).catch(function(e) { toast(e.message, 'error'); });
+  });
+}
+
+function pjPush(wsName) {
+  var msgInput = document.getElementById('push-msg-' + wsName);
+  if (!msgInput) return;
+  var msg = msgInput.value.trim();
+  if (!msg) { toast('Commit message required', 'error'); return; }
+  api('/api/sandboxes/' + encodeURIComponent(wsName) + '/git/push', {
+    method: 'POST',
+    body: JSON.stringify({ message: msg })
+  }).then(function() {
+    toast('Changes pushed for "' + wsName + '"', 'success');
+    var pushForm = document.getElementById('push-' + wsName);
+    if (pushForm) pushForm.classList.remove('active');
+    if (selectedProject) renderProjectDetail(selectedProject);
+  }).catch(function(e) { toast(e.message, 'error'); });
+}
+
+$('#pj-btnCreate').addEventListener('click', function() {
+  var form = $('#pj-createForm');
+  form.classList.toggle('active');
+  if (form.classList.contains('active')) $('#pj-createName').focus();
+});
+$('#pj-btnCreateCancel').addEventListener('click', function() {
+  $('#pj-createForm').classList.remove('active');
+  $('#pj-createName').value = '';
+  $('#pj-createRepo').value = '';
+});
+$('#pj-btnCreateSubmit').addEventListener('click', pjCreate);
+
+document.addEventListener('click', function(e) {
+  var target = e.target.closest('[data-pj-action]');
+  if (!target) return;
+  var action = target.dataset.pjAction;
+  if (action === 'select') renderProjectDetail(target.dataset.pjName);
+  else if (action === 'delete') pjDelete(target.dataset.pjName);
+  else if (action === 'showCreateWs') {
+    var form = $('#pj-wsForm');
+    if (form) { form.classList.toggle('active'); if (form.classList.contains('active')) $('#pj-wsName').focus(); }
+  }
+  else if (action === 'destroyWs') pjDestroyWs(target.dataset.pjWs, target.dataset.pjProject);
+  else if (action === 'showPush') {
+    var pf = document.getElementById('push-' + target.dataset.pjWs);
+    if (pf) pf.classList.toggle('active');
+  }
+  else if (action === 'cancelPush') {
+    var cp = document.getElementById('push-' + target.dataset.pjWs);
+    if (cp) cp.classList.remove('active');
+  }
+  else if (action === 'doPush') pjPush(target.dataset.pjWs);
 });
 
-async function refresh() {
-  await Promise.all([loadStats(), loadSandboxes(), loadDomains()]);
-  if (selectedSandbox && !currentFile) {
-    await loadFiles(selectedSandbox, currentPath);
+document.addEventListener('click', function(e) {
+  if (e.target.id === 'pj-wsSubmit' && selectedProject) pjCreateWs(selectedProject);
+  if (e.target.id === 'pj-wsCancel') {
+    var form = $('#pj-wsForm');
+    if (form) form.classList.remove('active');
+  }
+});
+
+$('#pj-createName').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') pjCreate();
+  if (e.key === 'Escape') { $('#pj-createForm').classList.remove('active'); }
+});
+$('#pj-createRepo').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') pjCreate();
+  if (e.key === 'Escape') { $('#pj-createForm').classList.remove('active'); }
+});
+
+/* ========== Users Tab ========== */
+
+var selectedUser = null;
+
+function renderUsers() {
+  var container = $('#usr-list');
+  return api('/api/users').then(function(users) {
+    if (!users.length) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#128100;</div><div>No users found</div></div>';
+      return;
+    }
+    var html = '<table class="data-table"><thead><tr><th>Name</th><th>Sandbox</th><th>Status</th><th>Domain</th><th>Actions</th></tr></thead><tbody>';
+    for (var i = 0; i < users.length; i++) {
+      var u = users[i];
+      var sel = selectedUser === u.name ? ' selected' : '';
+      var sbName = u.sandboxName || ('user-' + u.name);
+      var domain = u.domain || sbName;
+      html += '<tr class="' + sel + '">' +
+        '<td><span class="clickable" data-usr-action="select" data-usr-name="' + esc(u.name) + '">' + esc(u.name) + '</span></td>' +
+        '<td>' + esc(sbName) + '</td>' +
+        '<td>' + statusBadge(u.sandboxStatus || 'unknown') + '</td>' +
+        '<td><a href="https://' + esc(domain) + '.sandbox.19930810.xyz:8443" target="_blank">' + esc(domain) + '</a></td>' +
+        '<td>' +
+        '<a href="' + esc(terminalUrl(sbName)) + '" target="_blank" class="btn btn-ghost btn-sm">Terminal</a> ' +
+        '<button class="btn btn-danger btn-sm" data-usr-action="destroy" data-usr-name="' + esc(u.name) + '">Destroy</button>' +
+        '</td></tr>';
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }).catch(function(e) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
+  });
+}
+
+function renderUserDetail(userName) {
+  selectedUser = userName;
+  var container = $('#usr-detailContent');
+  $('#usr-detailTitle').textContent = userName;
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading user...</div>';
+
+  return api('/api/users').then(function(users) {
+    var user = null;
+    for (var i = 0; i < users.length; i++) {
+      if (users[i].name === userName) { user = users[i]; break; }
+    }
+    if (!user) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>User not found</div></div>';
+      return;
+    }
+
+    renderUsers();
+
+    var sbName = user.sandboxName || ('user-' + userName);
+    var domain = user.domain || sbName;
+
+    var html = '<div style="padding:16px">';
+
+    html += '<div style="background:rgba(15,52,96,0.15);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:16px">' +
+      '<h3 style="font-size:14px;margin-bottom:12px">User Info</h3>' +
+      '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">' +
+      '<span style="color:var(--text-dim)">Name:</span><span>' + esc(user.name) + '</span>' +
+      '<span style="color:var(--text-dim)">Sandbox:</span><span>' + esc(sbName) + '</span>' +
+      '<span style="color:var(--text-dim)">Status:</span><span>' + statusBadge(user.sandboxStatus || 'unknown') + '</span>' +
+      '<span style="color:var(--text-dim)">App URL:</span><span><a href="https://' + esc(domain) + '.sandbox.19930810.xyz:8443" target="_blank">https://' + esc(domain) + '.sandbox.19930810.xyz:8443</a></span>' +
+      '<span style="color:var(--text-dim)">Terminal:</span><span><a href="' + esc(terminalUrl(sbName)) + '" target="_blank">' + esc(terminalUrl(sbName)) + '</a></span>' +
+      '</div></div>';
+
+    html += '<div style="background:rgba(15,52,96,0.15);border:1px solid var(--border);border-radius:6px;padding:16px">' +
+      '<h3 style="font-size:14px;margin-bottom:12px">Workspace Files</h3>' +
+      '<div id="usr-files"><div class="loading"><div class="spinner"></div>Loading files...</div></div>' +
+      '</div>';
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    loadUserFiles(sbName, '/');
+  }).catch(function(e) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><div>' + esc(e.message) + '</div></div>';
+  });
+}
+
+function loadUserFiles(sbName, dirPath) {
+  var container = document.getElementById('usr-files');
+  if (!container) return;
+
+  api('/api/sandboxes/' + encodeURIComponent(sbName) + '/files?path=' + encodeURIComponent(dirPath))
+    .then(function(files) {
+      var html = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">Path: ' + esc(dirPath) + '</div>';
+      html += '<ul class="file-list" style="border:1px solid var(--border);border-radius:4px;overflow:hidden">';
+      if (dirPath !== '/') {
+        html += '<li class="file-item" data-usr-action="usrDir" data-usr-path="' + esc(dirPath.split('/').slice(0, -1).join('/') || '/') + '">' +
+          '<span class="file-icon">&#128193;</span><span class="file-name">..</span></li>';
+      }
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        var icon = f.type === 'directory' ? '&#128193;' : '&#128196;';
+        var fpath = dirPath === '/' ? '/' + f.name : dirPath + '/' + f.name;
+        var action = f.type === 'directory' ? 'data-usr-action="usrDir" data-usr-path="' + esc(fpath) + '"' : 'style="cursor:default"';
+        html += '<li class="file-item" ' + action + '>' +
+          '<span class="file-icon">' + icon + '</span>' +
+          '<span class="file-name">' + esc(f.name) + '</span>' +
+          '<span class="file-size">' + (f.type === 'file' ? formatBytes(f.size) : '') + '</span>' +
+          '<span class="file-mtime">' + (f.mtime ? new Date(f.mtime).toLocaleString() : '') + '</span></li>';
+      }
+      if (!files.length) {
+        html += '<li class="file-item" style="cursor:default;color:var(--text-dim);justify-content:center">Empty directory</li>';
+      }
+      html += '</ul>';
+      container.innerHTML = html;
+    }).catch(function(e) {
+      container.innerHTML = '<div style="color:var(--text-dim);padding:8px">Could not load files: ' + esc(e.message) + '</div>';
+    });
+}
+
+function usrCreate() {
+  var input = $('#usr-createName');
+  var name = input.value.trim();
+  if (!name) return;
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    toast('Invalid name. Use alphanumeric, hyphens, underscores.', 'error');
+    return;
+  }
+  var btn = $('#usr-btnCreateSubmit');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+  api('/api/users', { method: 'POST', body: JSON.stringify({ name: name }) })
+    .then(function() {
+      toast('User "' + name + '" created', 'success');
+      input.value = '';
+      $('#usr-createForm').classList.remove('active');
+      renderUsers();
+    }).catch(function(e) { toast(e.message, 'error'); })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Create'; });
+}
+
+function usrDestroy(name) {
+  showConfirm('Destroy User', 'Destroy user "' + name + '"? Choose whether to keep sandbox data.', 'Destroy All', 'btn-danger', function() {
+    api('/api/users/' + encodeURIComponent(name), { method: 'DELETE', body: JSON.stringify({ keepData: false }) })
+      .then(function() {
+        toast('User "' + name + '" destroyed', 'success');
+        if (selectedUser === name) {
+          selectedUser = null;
+          $('#usr-detailTitle').textContent = 'User Detail';
+          $('#usr-detailContent').innerHTML = '<div class="empty-state"><div class="icon">&#128100;</div><div>Select a user to view details</div></div>';
+        }
+        renderUsers();
+      }).catch(function(e) { toast(e.message, 'error'); });
+  });
+}
+
+$('#usr-btnCreate').addEventListener('click', function() {
+  var form = $('#usr-createForm');
+  form.classList.toggle('active');
+  if (form.classList.contains('active')) $('#usr-createName').focus();
+});
+$('#usr-btnCreateCancel').addEventListener('click', function() {
+  $('#usr-createForm').classList.remove('active');
+  $('#usr-createName').value = '';
+});
+$('#usr-btnCreateSubmit').addEventListener('click', usrCreate);
+$('#usr-createName').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') usrCreate();
+  if (e.key === 'Escape') { $('#usr-createForm').classList.remove('active'); this.value = ''; }
+});
+
+document.addEventListener('click', function(e) {
+  var target = e.target.closest('[data-usr-action]');
+  if (!target) return;
+  var action = target.dataset.usrAction;
+  if (action === 'select') renderUserDetail(target.dataset.usrName);
+  else if (action === 'destroy') usrDestroy(target.dataset.usrName);
+  else if (action === 'usrDir' && selectedUser) {
+    api('/api/users').then(function(users) {
+      for (var i = 0; i < users.length; i++) {
+        if (users[i].name === selectedUser) {
+          loadUserFiles(users[i].sandboxName || ('user-' + users[i].name), target.dataset.usrPath);
+          break;
+        }
+      }
+    });
+  }
+});
+
+/* ========== Auto Refresh ========== */
+
+function refresh() {
+  loadStats();
+  if (activeTab === 'sandboxes') {
+    renderSandboxes();
+    loadDomains();
+    if (selectedSandbox && !sbCurrentFile) sbLoadFiles(selectedSandbox, sbCurrentPath);
+  } else if (activeTab === 'projects') {
+    renderProjects();
+  } else if (activeTab === 'users') {
+    renderUsers();
   }
 }
 

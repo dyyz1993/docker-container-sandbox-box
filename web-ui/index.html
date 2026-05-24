@@ -1273,31 +1273,90 @@ var agentStreaming = false;
 var agentCurrentStreamId = null;
 var agentModels = [];
 var agentSandboxes = [];
+var chatPollTimer = null;
+var wsConnected = false;
 
 function agentConnect() {
   if (agentWs && (agentWs.readyState === WebSocket.OPEN || agentWs.readyState === WebSocket.CONNECTING)) return;
-  var wsUrl = 'ws://' + window.location.host + '/ws/chat';
+  var wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/ws/chat';
   agentWs = new WebSocket(wsUrl);
   agentUpdateStatus('connecting');
+  var wsTimeout = setTimeout(function() {
+    if (!wsConnected) {
+      startPolling();
+      agentUpdateStatus('connected');
+      toast('Using HTTP polling (WebSocket unavailable)', 'info');
+    }
+  }, 3000);
   agentWs.onopen = function() {
+    clearTimeout(wsTimeout);
+    wsConnected = true;
+    stopPolling();
     agentUpdateStatus('connected');
     agentWsSend({ action: 'get_models' });
     agentWsSend({ action: 'get_messages' });
     agentLoadSandboxes();
   };
   agentWs.onclose = function() {
-    agentUpdateStatus('disconnected');
+    wsConnected = false;
     agentWs = null;
+    if (!chatPollTimer) {
+      startPolling();
+      agentUpdateStatus('connected');
+    }
   };
   agentWs.onerror = function() {
-    agentUpdateStatus('disconnected');
-    toast('WebSocket connection error', 'error');
+    wsConnected = false;
+    if (!chatPollTimer) {
+      startPolling();
+      agentUpdateStatus('connected');
+    }
   };
   agentWs.onmessage = function(ev) {
     var data;
     try { data = JSON.parse(ev.data); } catch(e) { return; }
     agentHandleMessage(data);
   };
+}
+
+function startPolling() {
+  if (chatPollTimer) return;
+  chatPollTimer = setInterval(function() {
+    fetch('/api/chat/status').then(function(r) { return r.json(); }).then(function(d) {
+      var dot = $('#agent-status-dot');
+      var text = $('#agent-status-text');
+      if (dot && text) {
+        if (d.ready) {
+          dot.className = 'agent-status-dot connected';
+          text.textContent = 'Connected (polling)';
+        } else if (d.running) {
+          dot.className = 'agent-status-dot connecting';
+          text.textContent = 'Starting...';
+        } else {
+          dot.className = 'agent-status-dot disconnected';
+          text.textContent = 'Stopped';
+        }
+      }
+    }).catch(function() {});
+    fetch('/api/chat/messages').then(function(r) { return r.json(); }).then(function(d) {
+      if (d.messages && d.messages.length > 0) {
+        var changed = d.messages.length !== agentMessages.length;
+        if (!changed) {
+          for (var i = 0; i < d.messages.length; i++) {
+            if (d.messages[i].content !== (agentMessages[i] || {}).content) { changed = true; break; }
+          }
+        }
+        if (changed) {
+          agentMessages = d.messages;
+          agentRenderMessages();
+        }
+      }
+    }).catch(function() {});
+  }, 2000);
+}
+
+function stopPolling() {
+  if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
 }
 
 function agentWsSend(obj) {
@@ -1457,17 +1516,31 @@ function agentSend() {
   input.value = '';
   input.style.height = 'auto';
   agentRenderMessages();
-  agentWsSend({
-    action: 'chat',
-    message: text,
-    model: agentGetModel(),
-    sandbox: agentGetSandbox()
-  });
+  if (agentWs && agentWs.readyState === WebSocket.OPEN) {
+    agentWs.send(JSON.stringify({
+      action: 'prompt',
+      message: text,
+      model: agentGetModel(),
+      sandbox: agentGetSandbox()
+    }));
+  } else {
+    fetch('/api/chat/prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.error) toast(d.error, 'error');
+    }).catch(function(e) { toast('Send failed: ' + e.message, 'error'); });
+  }
   agentUpdateStreamingUI(true);
 }
 
 function agentStopStream() {
-  agentWsSend({ action: 'stop' });
+  if (agentWs && agentWs.readyState === WebSocket.OPEN) {
+    agentWsSend({ action: 'stop' });
+  } else {
+    fetch('/api/chat/stop', { method: 'POST' }).catch(function() {});
+  }
   agentStreaming = false;
   agentCurrentStreamId = null;
   agentUpdateStreamingUI(false);
@@ -1567,15 +1640,38 @@ $('#chat-send-btn').addEventListener('click', agentSend);
 $('#chat-stop-btn').addEventListener('click', agentStopStream);
 
 $('#agent-start-btn').addEventListener('click', function() {
-  if (!agentWs || agentWs.readyState !== WebSocket.OPEN) {
-    agentConnect();
-  }
-  agentSend();
+  fetch('/api/chat/start', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      toast('Agent starting...', 'info');
+      startPolling();
+      agentLoadSandboxes();
+    })
+    .catch(function(e) { toast('Start failed: ' + e.message, 'error'); });
 });
-$('#agent-stop-btn').addEventListener('click', agentStopStream);
+$('#agent-stop-btn').addEventListener('click', function() {
+  if (agentWs && agentWs.readyState === WebSocket.OPEN) {
+    agentWsSend({ action: 'stop' });
+  } else {
+    fetch('/api/chat/stop', { method: 'POST' }).catch(function() {});
+  }
+  agentStreaming = false;
+  agentCurrentStreamId = null;
+  agentUpdateStreamingUI(false);
+});
 
 $('#agent-refresh-btn').addEventListener('click', function() {
-  agentWsSend({ action: 'get_messages' });
+  if (agentWs && agentWs.readyState === WebSocket.OPEN) {
+    agentWsSend({ action: 'get_messages' });
+  } else {
+    fetch('/api/chat/messages').then(function(r) { return r.json(); }).then(function(d) {
+      if (d.messages) {
+        agentMessages = d.messages;
+        agentRenderMessages();
+        toast('Messages refreshed', 'success');
+      }
+    }).catch(function(e) { toast('Failed: ' + e.message, 'error'); });
+  }
   agentLoadSandboxes();
 });
 

@@ -679,6 +679,7 @@ const rpcPending = new Map();
 let rpcReady = false;
 let messageHistory = [];
 let currentState = null;
+let currentStreamMsg = null;
 
 function broadcastToChat(data) {
   const msg = JSON.stringify(data);
@@ -748,6 +749,15 @@ function sendRpcCommand(cmd) {
   });
 }
 
+function flattenContent(content) {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.filter(c => c.type === 'text' && c.text).map(c => c.text).join('\n');
+  }
+  return String(content);
+}
+
 function handleRpcEvent(event) {
   if (event.type === 'ready') {
     rpcReady = true;
@@ -764,15 +774,37 @@ function handleRpcEvent(event) {
   }
 
   if (event.type === 'message_update') {
+    if (!currentStreamMsg) {
+      currentStreamMsg = {
+        id: 'msg-' + Date.now(),
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString()
+      };
+    }
+    const aev = event.assistantMessageEvent;
+    if (aev && aev.type === 'text_delta') {
+      currentStreamMsg.content += aev.delta || '';
+    }
     broadcastToChat({ type: 'stream', data: event });
-  } else if (event.type === 'agent_end') {
+  } else if (event.type === 'message_end') {
     broadcastToChat({ type: 'done', data: event });
-    sendRpcCommand({ type: 'get_full_messages' }).then(res => {
-      if (res?.messages) {
-        messageHistory = res.messages;
-        broadcastToChat({ type: 'messages', messages: messageHistory });
+  } else if (event.type === 'agent_end') {
+    currentStreamMsg = null;
+    if (event.messages && event.messages.length > 0) {
+      for (const m of event.messages) {
+        if (m.role === 'assistant') {
+          messageHistory.push({
+            id: m.entryId || ('msg-' + Date.now()),
+            role: 'assistant',
+            content: flattenContent(m.content),
+            timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : new Date().toISOString()
+          });
+        }
       }
-    }).catch(() => {});
+    }
+    broadcastToChat({ type: 'done', data: event });
+    broadcastToChat({ type: 'messages', messages: messageHistory });
   } else if (event.type === 'message_start') {
     broadcastToChat({ type: 'stream_start', data: event });
   } else {
@@ -907,8 +939,17 @@ async function handleRequest(req, res) {
     if (method === 'POST' && pathname === '/api/chat/start') { startRpc(); sendJSON(res, 200, { status: 'starting' }); return; }
     if (method === 'POST' && pathname === '/api/chat/stop') { stopRpc(); sendJSON(res, 200, { status: 'stopped' }); return; }
     if (method === 'POST' && pathname === '/api/chat/prompt') {
-      readBody(req).then(body => {
-        sendRpcCommand({ type: 'prompt', message: body.message }).then(r => sendJSON(res, 200, r)).catch(e => sendError(res, 500, e.message));
+      readBody(req).then(async body => {
+        try {
+          messageHistory.push({
+            id: 'user-' + Date.now(),
+            role: 'user',
+            content: body.message || '',
+            timestamp: new Date().toISOString()
+          });
+          const result = await sendRpcCommand({ type: 'prompt', message: body.message });
+          sendJSON(res, 200, result || { success: true });
+        } catch (e) { sendError(res, 500, e.message); }
       });
       return;
     }

@@ -10,7 +10,7 @@ import type {
 } from './types';
 
 export interface ContainerDriver {
-  readonly type: 'sandbox-box' | 'cloudflare';
+  readonly type: 'sandbox-box' | 'cloudflare' | 'docker';
 
   create(name: string, config?: ContainerConfig): Promise<void>;
   start(name: string, config?: ContainerConfig): Promise<void>;

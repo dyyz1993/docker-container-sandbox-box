@@ -81,7 +81,7 @@ export interface ContainerStats {
   disk: number;
 }
 
-export type DriverType = 'sandbox-box' | 'cloudflare';
+export type DriverType = 'sandbox-box' | 'cloudflare' | 'docker';
 
 export interface SandboxBoxDriverConfig {
   type: 'sandbox-box';
@@ -95,7 +95,17 @@ export interface CloudflareDriverConfig {
   binding: unknown;
 }
 
-export type DriverConfig = SandboxBoxDriverConfig | CloudflareDriverConfig;
+export interface DockerDriverConfig {
+  type: 'docker';
+  socketPath?: string;
+  image?: string;
+  defaultPort?: number;
+}
+
+export type DriverConfig =
+  | SandboxBoxDriverConfig
+  | CloudflareDriverConfig
+  | DockerDriverConfig;
 
 export class UnsupportedOperationError extends Error {
   readonly driver: string;

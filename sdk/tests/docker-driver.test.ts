@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { existsSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 
 const DOCKER_SOCKET = '/var/run/docker.sock';
-const TEST_IMAGE = 'node:22-bookworm-slim';
+const TEST_IMAGE = 'node:20';
 const TEST_PREFIX = `sbx-test-${Date.now()}`;
 
 function hasDocker(): boolean {
@@ -27,8 +26,6 @@ describe('DockerDriver', () => {
       image: TEST_IMAGE,
       defaultPort: 3000,
     });
-    // Pull the test image (idempotent if already present)
-    spawnSync('docker', ['pull', TEST_IMAGE], { stdio: 'pipe', timeout: 120_000 });
   });
 
   afterAll(async () => {

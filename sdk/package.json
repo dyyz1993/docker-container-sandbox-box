@@ -26,7 +26,8 @@
   "devDependencies": {
     "typescript": "^5.0.0",
     "tsup": "^8.0.0",
-    "@cloudflare/containers": "latest"
+    "@cloudflare/containers": "latest",
+    "@types/node": "^22.0.0"
   },
   "keywords": ["sandbox", "containers", "cloudflare"],
   "license": "MIT"

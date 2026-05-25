@@ -1,0 +1,572 @@
+"use strict";
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/index.ts
+var index_exports = {};
+__export(index_exports, {
+  ApiRequestError: () => ApiRequestError,
+  AuthenticationError: () => AuthenticationError,
+  CloudflareDriver: () => CloudflareDriver,
+  Container: () => Container,
+  ContainerNotFoundError: () => ContainerNotFoundError,
+  ContainerNotRunningError: () => ContainerNotRunningError,
+  ContainerStartError: () => ContainerStartError,
+  SandboxBoxDriver: () => SandboxBoxDriver,
+  UnsupportedOperationError: () => UnsupportedOperationError,
+  getContainer: () => getContainer,
+  getDriver: () => getDriver,
+  initDriver: () => initDriver,
+  listContainers: () => listContainers,
+  resetDriver: () => resetDriver,
+  switchPort: () => switchPort
+});
+module.exports = __toCommonJS(index_exports);
+
+// src/types.ts
+var UnsupportedOperationError = class extends Error {
+  driver;
+  operation;
+  constructor(operation, driver) {
+    super(`Operation "${operation}" is not supported by "${driver}" driver`);
+    this.name = "UnsupportedOperationError";
+    this.operation = operation;
+    this.driver = driver;
+  }
+};
+var ContainerNotFoundError = class extends Error {
+  containerName;
+  constructor(name) {
+    super(`Container "${name}" not found`);
+    this.name = "ContainerNotFoundError";
+    this.containerName = name;
+  }
+};
+var ContainerStartError = class extends Error {
+  containerName;
+  constructor(name, reason) {
+    super(`Failed to start container "${name}": ${reason}`);
+    this.name = "ContainerStartError";
+    this.containerName = name;
+  }
+};
+var ContainerNotRunningError = class extends Error {
+  containerName;
+  constructor(name) {
+    super(`Container "${name}" is not running`);
+    this.name = "ContainerNotRunningError";
+    this.containerName = name;
+  }
+};
+var AuthenticationError = class extends Error {
+  constructor(reason) {
+    super(`Authentication failed: ${reason}`);
+    this.name = "AuthenticationError";
+  }
+};
+var ApiRequestError = class extends Error {
+  statusCode;
+  endpoint;
+  constructor(endpoint, statusCode, body) {
+    super(`API request to "${endpoint}" failed (${statusCode}): ${body}`);
+    this.name = "ApiRequestError";
+    this.statusCode = statusCode;
+    this.endpoint = endpoint;
+  }
+};
+
+// src/container.ts
+var DEFAULT_WAIT_ATTEMPTS = 60;
+var WAIT_INTERVAL_MS = 1e3;
+var Container = class {
+  name;
+  config;
+  driver;
+  constructor(name, config, driver) {
+    this.name = name;
+    this.config = config;
+    this.driver = driver;
+  }
+  async start(options) {
+    const merged = { ...this.config, ...options };
+    await this.driver.start(this.name, merged);
+  }
+  async startAndWaitForPorts(options) {
+    await this.start(options);
+    const ports = this.config.requiredPorts;
+    if (!ports || ports.length === 0) {
+      for (let i = 0; i < DEFAULT_WAIT_ATTEMPTS; i++) {
+        const state = await this.driver.getState(this.name);
+        if (state.status === "running" || state.status === "healthy") return;
+        await new Promise((r) => setTimeout(r, WAIT_INTERVAL_MS));
+      }
+      throw new Error(`Container "${this.name}" failed to start within ${DEFAULT_WAIT_ATTEMPTS}s`);
+    }
+    for (const port of ports) {
+      for (let i = 0; i < DEFAULT_WAIT_ATTEMPTS; i++) {
+        try {
+          const probe = new Request(`http://localhost:${port}/`);
+          const resp = await this.driver.fetch(this.name, probe, port);
+          if (resp.ok || resp.status < 500) break;
+        } catch {
+        }
+        if (i === DEFAULT_WAIT_ATTEMPTS - 1) {
+          throw new Error(`Container "${this.name}" port ${port} not ready within ${DEFAULT_WAIT_ATTEMPTS}s`);
+        }
+        await new Promise((r) => setTimeout(r, WAIT_INTERVAL_MS));
+      }
+    }
+  }
+  async stop(signal) {
+    await this.driver.stop(this.name, signal);
+  }
+  async destroy() {
+    await this.driver.destroy(this.name);
+  }
+  async fetch(request) {
+    return this.driver.fetch(this.name, request, this.config.defaultPort);
+  }
+  async getState() {
+    return this.driver.getState(this.name);
+  }
+  async exec(command) {
+    return this.driver.exec(this.name, command);
+  }
+  async execStream(command, callbacks, options) {
+    return this.driver.execStream(this.name, command, callbacks, options);
+  }
+  async readFile(path) {
+    return this.driver.readFile(this.name, path);
+  }
+  async writeFile(path, content) {
+    return this.driver.writeFile(this.name, path, content);
+  }
+  async listFiles(path = "/") {
+    return this.driver.listFiles(this.name, path);
+  }
+  async gitStatus() {
+    return this.driver.gitStatus(this.name);
+  }
+  async gitPush(message) {
+    return this.driver.gitPush(this.name, message);
+  }
+  async getStats() {
+    return this.driver.getStats(this.name);
+  }
+};
+
+// src/drivers/sandbox-box.ts
+var import_node_child_process = require("child_process");
+function mapStatus(raw) {
+  switch (raw) {
+    case "running":
+      return "running";
+    case "creating":
+      return "creating";
+    case "stopping":
+      return "stopping";
+    case "error":
+      return "error";
+    default:
+      return "stopped";
+  }
+}
+var SandboxBoxDriver = class {
+  type = "sandbox-box";
+  baseUrl;
+  password;
+  token;
+  constructor(config) {
+    this.baseUrl = config.baseUrl.replace(/\/$/, "");
+    this.password = config.password ?? "";
+    this.token = config.token ?? "";
+  }
+  async ensureToken() {
+    if (this.token) return this.token;
+    const res = await fetch(`${this.baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: this.password })
+    });
+    if (!res.ok) {
+      throw new AuthenticationError(`Login returned ${res.status}`);
+    }
+    const data = await res.json();
+    if (!data.token) {
+      throw new AuthenticationError("No token in login response");
+    }
+    this.token = data.token;
+    return this.token;
+  }
+  async rawRequest(path, options = {}) {
+    const token = await this.ensureToken();
+    const headers = new Headers(options.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    if (!headers.has("Content-Type") && options.body) {
+      headers.set("Content-Type", "application/json");
+    }
+    return fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers
+    });
+  }
+  async request(path, options = {}) {
+    const res = await this.rawRequest(path, options);
+    if (res.status === 401) {
+      this.token = "";
+      const retry = await this.rawRequest(path, options);
+      if (!retry.ok) {
+        throw new ApiRequestError(path, retry.status, await retry.text());
+      }
+      return retry;
+    }
+    if (!res.ok) {
+      throw new ApiRequestError(path, res.status, await res.text());
+    }
+    return res;
+  }
+  // --- Lifecycle ---
+  async create(name, config) {
+    if (config?.repoUrl) {
+      await this.request("/api/sandboxes/clone", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          repoUrl: config.repoUrl,
+          branch: config.branch
+        })
+      });
+    } else {
+      await this.request("/api/sandboxes", {
+        method: "POST",
+        body: JSON.stringify({ name })
+      });
+    }
+  }
+  async start(name, config) {
+    const state = await this.getState(name);
+    if (state.status === "running" || state.status === "healthy") {
+      return;
+    }
+    await this.create(name, config);
+  }
+  async stop(name, _signal) {
+    try {
+      await this.request(`/api/sandboxes/${encodeURIComponent(name)}/exec`, {
+        method: "POST",
+        body: JSON.stringify({ command: "echo stopping" })
+      });
+    } catch {
+    }
+  }
+  async destroy(name) {
+    const res = await this.rawRequest(
+      `/api/sandboxes/${encodeURIComponent(name)}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok && res.status !== 404) {
+      throw new ApiRequestError(`/api/sandboxes/${name}`, res.status, await res.text());
+    }
+  }
+  async getState(name) {
+    const res = await this.request("/api/sandboxes");
+    const data = await res.json();
+    const sb = data.sandboxes.find((s) => s.name === name);
+    if (!sb) {
+      return {
+        status: "stopped",
+        lastChange: /* @__PURE__ */ new Date()
+      };
+    }
+    return {
+      status: mapStatus(sb.status),
+      lastChange: new Date(sb.updatedAt ?? sb.createdAt),
+      pid: sb.pid,
+      ip: sb.ip,
+      domain: sb.domain,
+      port: sb.port
+    };
+  }
+  // --- Networking ---
+  async fetch(name, request, port) {
+    const state = await this.getState(name);
+    if (state.status !== "running" && state.status !== "healthy") {
+      throw new ContainerNotFoundError(name);
+    }
+    const targetPort = port ?? 3100;
+    const url = new URL(request.url);
+    const targetUrl = `http://${state.ip}:${targetPort}${url.pathname}${url.search}`;
+    return fetch(targetUrl, {
+      method: request.method,
+      headers: request.headers,
+      body: ["GET", "HEAD"].includes(request.method) ? void 0 : request.body
+    });
+  }
+  // --- Exec ---
+  async exec(name, command) {
+    const res = await this.request(
+      `/api/sandboxes/${encodeURIComponent(name)}/exec`,
+      {
+        method: "POST",
+        body: JSON.stringify({ command })
+      }
+    );
+    const data = await res.json();
+    return {
+      stdout: data.stdout ?? data.output ?? "",
+      stderr: data.stderr ?? "",
+      exitCode: data.exitCode ?? 0
+    };
+  }
+  async execStream(name, command, callbacks, options) {
+    return new Promise((resolve, reject) => {
+      const escaped = command.replace(/'/g, "'\\''");
+      const proc = (0, import_node_child_process.spawn)("bash", ["-c", `sandbox ${name} '${escaped}'`], {
+        timeout: options?.timeout,
+        env: { ...process.env, HOME: "/root" },
+        cwd: options?.cwd
+      });
+      proc.stdout.on("data", (data) => callbacks.onStdout(data.toString()));
+      proc.stderr.on("data", (data) => callbacks.onStderr?.(data.toString()));
+      if (options?.signal) {
+        const onAbort = () => proc.kill("SIGTERM");
+        options.signal.addEventListener("abort", onAbort, { once: true });
+        proc.on("close", () => options.signal.removeEventListener("abort", onAbort));
+      }
+      proc.on("close", (code) => resolve({ exitCode: code ?? 0 }));
+      proc.on("error", (err) => reject(err));
+    });
+  }
+  // --- Files ---
+  async readFile(name, path) {
+    const res = await this.request(
+      `/api/sandboxes/${encodeURIComponent(name)}/files/read?path=${encodeURIComponent(path)}`
+    );
+    return await res.text();
+  }
+  async writeFile(name, path, content) {
+    await this.request(
+      `/api/sandboxes/${encodeURIComponent(name)}/files/write`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ path, content })
+      }
+    );
+  }
+  async listFiles(name, path) {
+    const res = await this.request(
+      `/api/sandboxes/${encodeURIComponent(name)}/files?path=${encodeURIComponent(path)}`
+    );
+    const data = await res.json();
+    return data.map((f) => ({
+      name: f.name,
+      path: `${path}/${f.name}`,
+      type: f.type ?? "file",
+      size: f.size ?? 0,
+      modified: f.mtime ?? ""
+    }));
+  }
+  // --- Git ---
+  async gitStatus(name) {
+    const res = await this.request(
+      `/api/sandboxes/${encodeURIComponent(name)}/git/status`
+    );
+    return await res.json();
+  }
+  async gitPush(name, message) {
+    await this.request(
+      `/api/sandboxes/${encodeURIComponent(name)}/git/push`,
+      {
+        method: "POST",
+        body: JSON.stringify({ message })
+      }
+    );
+  }
+  // --- Stats ---
+  async getStats(name) {
+    const res = await this.request(
+      `/api/sandboxes/${encodeURIComponent(name)}/stats`
+    );
+    return await res.json();
+  }
+  // --- List ---
+  async list() {
+    const res = await this.request("/api/sandboxes");
+    const data = await res.json();
+    return data.sandboxes.map((sb) => ({
+      name: sb.name,
+      state: {
+        status: mapStatus(sb.status),
+        lastChange: new Date(sb.updatedAt ?? sb.createdAt),
+        pid: sb.pid,
+        ip: sb.ip,
+        domain: sb.domain,
+        port: sb.port
+      }
+    }));
+  }
+};
+
+// src/drivers/cloudflare.ts
+var CloudflareDriver = class {
+  type = "cloudflare";
+  binding;
+  constructor(config) {
+    this.binding = config.binding;
+  }
+  async create(_name, _config) {
+    throw new UnsupportedOperationError("create", "cloudflare");
+  }
+  async start(name, config) {
+    const cf = this.binding;
+    if (!cf || typeof cf.start !== "function") {
+      throw new UnsupportedOperationError("start", "cloudflare");
+    }
+    await cf.start(name, config);
+  }
+  async stop(name, signal) {
+    const cf = this.binding;
+    if (!cf || typeof cf.stop !== "function") {
+      throw new UnsupportedOperationError("stop", "cloudflare");
+    }
+    await cf.stop(name, signal);
+  }
+  async destroy(name) {
+    const cf = this.binding;
+    if (!cf || typeof cf.destroy !== "function") {
+      throw new UnsupportedOperationError("destroy", "cloudflare");
+    }
+    await cf.destroy(name);
+  }
+  async getState(name) {
+    const cf = this.binding;
+    if (!cf || typeof cf.getState !== "function") {
+      throw new UnsupportedOperationError("getState", "cloudflare");
+    }
+    return cf.getState(name);
+  }
+  async fetch(name, request, port) {
+    const cf = this.binding;
+    if (!cf || typeof cf.fetch !== "function") {
+      throw new UnsupportedOperationError("fetch", "cloudflare");
+    }
+    return cf.fetch(name, request, port);
+  }
+  async exec(_name, _command) {
+    throw new UnsupportedOperationError("exec", "cloudflare");
+  }
+  async execStream(_name, _command, _callbacks, _options) {
+    throw new UnsupportedOperationError("execStream", "cloudflare");
+  }
+  async readFile(_name, _path) {
+    throw new UnsupportedOperationError("readFile", "cloudflare");
+  }
+  async writeFile(_name, _path, _content) {
+    throw new UnsupportedOperationError("writeFile", "cloudflare");
+  }
+  async listFiles(_name, _path) {
+    throw new UnsupportedOperationError("listFiles", "cloudflare");
+  }
+  async gitStatus(_name) {
+    throw new UnsupportedOperationError("gitStatus", "cloudflare");
+  }
+  async gitPush(_name, _message) {
+    throw new UnsupportedOperationError("gitPush", "cloudflare");
+  }
+  async getStats(_name) {
+    throw new UnsupportedOperationError("getStats", "cloudflare");
+  }
+  async list() {
+    throw new UnsupportedOperationError("list", "cloudflare");
+  }
+};
+
+// src/index.ts
+var _driver = null;
+function initDriver(config) {
+  if (config.type === "sandbox-box") {
+    _driver = new SandboxBoxDriver({
+      baseUrl: config.baseUrl,
+      token: config.token,
+      password: config.password
+    });
+    return;
+  }
+  if (config.type === "cloudflare") {
+    _driver = new CloudflareDriver({ binding: config.binding });
+    return;
+  }
+  throw new Error(`Unknown driver type: ${config.type}`);
+}
+function getDriver() {
+  if (_driver) return _driver;
+  const driverType = typeof process !== "undefined" && process.env?.CONTAINER_DRIVER || "sandbox-box";
+  if (driverType === "sandbox-box") {
+    _driver = new SandboxBoxDriver({
+      baseUrl: typeof process !== "undefined" && process.env?.SANDBOX_BOX_URL || "http://localhost:9091",
+      password: typeof process !== "undefined" && process.env?.SANDBOX_BOX_PASSWORD || "sandbox2024"
+    });
+    return _driver;
+  }
+  throw new Error(
+    'Cloudflare driver must be initialized explicitly with initDriver({ type: "cloudflare", binding })'
+  );
+}
+function resetDriver() {
+  _driver = null;
+}
+function getContainer(name, config) {
+  const driver = getDriver();
+  return new Container(name, config ?? {}, driver);
+}
+async function listContainers() {
+  const driver = getDriver();
+  const items = await driver.list();
+  return items.map((item) => new Container(item.name, {}, driver));
+}
+function switchPort(request, port) {
+  const url = new URL(request.url);
+  const newUrl = new URL(url.pathname + url.search + url.hash, url.origin);
+  const headers = new Headers(request.headers);
+  headers.set("X-Container-Port", String(port));
+  return new Request(newUrl, {
+    method: request.method,
+    headers,
+    body: ["GET", "HEAD"].includes(request.method) ? void 0 : request.body,
+    redirect: request.redirect
+  });
+}
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  ApiRequestError,
+  AuthenticationError,
+  CloudflareDriver,
+  Container,
+  ContainerNotFoundError,
+  ContainerNotRunningError,
+  ContainerStartError,
+  SandboxBoxDriver,
+  UnsupportedOperationError,
+  getContainer,
+  getDriver,
+  initDriver,
+  listContainers,
+  resetDriver,
+  switchPort
+});
+//# sourceMappingURL=index.js.map

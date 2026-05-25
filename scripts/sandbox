@@ -191,7 +191,8 @@ case "${1:-}" in
         echo "  sandbox url <name>                Show sandbox URL"
         echo "  sandbox health <name>             Health check"
         echo "  sandbox resume <name>             Resume stopped sandbox"
-        echo "  sandbox destroy <name>            Destroy sandbox (keeps data)"
+        echo "  sandbox destroy <name>            Destroy sandbox (full cleanup)"
+        echo "  SANDBOX_PRESERVE=true sandbox destroy <name>  Stop but keep data"
         ;;
     "")
         echo "Usage: sandbox <name> <command> or sandbox help"

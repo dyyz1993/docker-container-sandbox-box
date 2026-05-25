@@ -5,11 +5,18 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/sandbox-lib.sh"
 
 name="${1:-}"
-preserve="${2:-true}"
 
 if [ -z "$name" ]; then
     echo "Usage: sandbox destroy <name>"
     exit 1
+fi
+
+if [ "${SANDBOX_PRESERVE:-}" = "true" ]; then
+    preserve="true"
+elif [ "${2:-}" = "preserve" ] || [ "${2:-}" = "true" ]; then
+    preserve="true"
+else
+    preserve="false"
 fi
 
 validate_name "$name"
@@ -52,5 +59,5 @@ if [ "$preserve" = "false" ]; then
     echo "Sandbox '${name}' destroyed (data deleted)"
 else
     echo "Sandbox '${name}' destroyed (data preserved at ${sb_dir})"
+    echo "Resume with: sandbox resume ${name}"
 fi
-echo "Resume with: sandbox resume ${name}"

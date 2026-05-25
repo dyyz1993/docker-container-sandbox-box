@@ -15,6 +15,18 @@ RUN ARCH=$(case $(dpkg --print-architecture) in amd64) echo "x86_64";; arm64) ec
 RUN mkdir -p /run/sshd /var/log/supervisor /root/data/sandboxes /root/scripts /workspace \
     /root/.pi/agent/extensions/sandbox-box
 
+# Build SDK
+COPY sdk/package.json /tmp/sdk-build/package.json
+COPY sdk/tsup.config.ts /tmp/sdk-build/tsup.config.ts
+COPY sdk/tsconfig.json /tmp/sdk-build/tsconfig.json
+COPY sdk/src/ /tmp/sdk-build/src/
+RUN cd /tmp/sdk-build && npm install --silent && npx tsup && \
+    mkdir -p /root/.pi/agent/extensions/sandbox-box/node_modules/@sandbox-box/containers && \
+    cp /tmp/sdk-build/dist/index.js /root/.pi/agent/extensions/sandbox-box/node_modules/@sandbox-box/containers/index.js && \
+    cp /tmp/sdk-build/dist/index.d.ts /root/.pi/agent/extensions/sandbox-box/node_modules/@sandbox-box/containers/index.d.ts && \
+    echo '{"name":"@sandbox-box/containers","version":"0.1.0","main":"index.js","types":"index.d.ts"}' > /root/.pi/agent/extensions/sandbox-box/node_modules/@sandbox-box/containers/package.json && \
+    rm -rf /tmp/sdk-build
+
 COPY config/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
 COPY config/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY scripts/ /root/scripts/

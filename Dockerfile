@@ -37,6 +37,8 @@ COPY pi-extension/package.json /root/.pi/agent/extensions/sandbox-box/
 
 RUN cd /root/web-ui && npm install --production && node -e "require('better-sqlite3')" && echo "better-sqlite3 OK"
 
+RUN npm install -g @dyyz1993/pi-coding-agent@0.74.54 && pi --help > /dev/null && echo "pi OK"
+
 RUN chmod +x /entrypoint.sh /root/scripts/sandbox*
 
 EXPOSE 80 22 7681

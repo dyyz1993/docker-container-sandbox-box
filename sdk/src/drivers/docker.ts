@@ -206,24 +206,32 @@ export class DockerDriver implements ContainerDriver {
   }
 
   private async listAllContainers(): Promise<DockerContainerInspect[]> {
-    const { body, status } = await this.dockerRequest(
-      `/containers/json?all=true&filters=${encodeURIComponent(JSON.stringify({ label: [`${LABEL_MANAGED}=true`] }))}`,
-    );
-    if (status >= 400) return [];
-
-    const list = JSON.parse(body) as Array<{ Id: string; Names: string[]; Labels: Record<string, string> }>;
-    const results: DockerContainerInspect[] = [];
-
-    for (const c of list) {
-      const { body: inspectBody, status: inspectStatus } = await this.dockerRequest(
-        `/containers/${c.Id}/json`,
+    try {
+      const { body, status } = await this.dockerRequest(
+        `/containers/json?all=true&filters=${encodeURIComponent(JSON.stringify({ label: [`${LABEL_MANAGED}=true`] }))}`,
       );
-      if (inspectStatus < 400) {
-        results.push(JSON.parse(inspectBody));
-      }
-    }
+      if (status >= 400) return [];
 
-    return results;
+      const list = JSON.parse(body) as Array<{ Id: string; Names: string[]; Labels: Record<string, string> }>;
+      const results: DockerContainerInspect[] = [];
+
+      for (const c of list) {
+        try {
+          const { body: inspectBody, status: inspectStatus } = await this.dockerRequest(
+            `/containers/${c.Id}/json`,
+          );
+          if (inspectStatus < 400) {
+            results.push(JSON.parse(inspectBody));
+          }
+        } catch {
+          // skip containers we can't inspect
+        }
+      }
+
+      return results;
+    } catch {
+      return [];
+    }
   }
 
   private containerName(name: string): string {

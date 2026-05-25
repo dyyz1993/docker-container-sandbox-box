@@ -14,21 +14,30 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ci": "vitest run --reporter=verbose"
   },
-  "dependencies": {},
   "peerDependencies": {
     "@cloudflare/containers": ">=0.1.0"
   },
   "peerDependenciesMeta": {
-    "@cloudflare/containers": { "optional": true }
+    "@cloudflare/containers": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "tsup": "^8.0.0",
     "@cloudflare/containers": "latest",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.7"
   },
-  "keywords": ["sandbox", "containers", "cloudflare"],
+  "keywords": [
+    "sandbox",
+    "containers",
+    "cloudflare"
+  ],
   "license": "MIT"
 }

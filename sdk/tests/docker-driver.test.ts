@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 
 const DOCKER_SOCKET = '/var/run/docker.sock';
-const TEST_IMAGE = 'node:20';
+const TEST_IMAGES = [
+  'docker.io/node:22-bookworm-slim',
+  'docker.io/library/node:20',
+];
 const TEST_PREFIX = `sbx-test-${Date.now()}`;
 
 function hasDocker(): boolean {
@@ -12,6 +16,26 @@ function hasDocker(): boolean {
     return false;
   }
 }
+
+function findLocalImage(): string | undefined {
+  for (const img of TEST_IMAGES) {
+    try {
+      execSync(`docker image inspect ${img} 2>/dev/null`, { stdio: 'pipe' });
+      return img;
+    } catch {
+      // not found locally
+    }
+  }
+  return undefined;
+}
+
+function resolveImage(): string {
+  const local = findLocalImage();
+  if (local) return local;
+  return pullImage();
+}
+
+let resolvedImage = '';
 const itIfDocker = hasDocker() ? it : it.skip;
 
 describe('DockerDriver', () => {
@@ -20,10 +44,11 @@ describe('DockerDriver', () => {
 
   beforeAll(async () => {
     if (!hasDocker()) return;
+    resolvedImage = resolveImage();
     const { DockerDriver } = await import('../src/drivers/docker');
     driver = new DockerDriver({
       socketPath: DOCKER_SOCKET,
-      image: TEST_IMAGE,
+      image: resolvedImage,
       defaultPort: 3000,
     });
   });

@@ -64,7 +64,7 @@ interface ContainerStats {
     processes: number;
     disk: number;
 }
-type DriverType = 'sandbox-box' | 'cloudflare';
+type DriverType = 'sandbox-box' | 'cloudflare' | 'docker';
 interface SandboxBoxDriverConfig {
     type: 'sandbox-box';
     baseUrl: string;
@@ -75,7 +75,13 @@ interface CloudflareDriverConfig {
     type: 'cloudflare';
     binding: unknown;
 }
-type DriverConfig = SandboxBoxDriverConfig | CloudflareDriverConfig;
+interface DockerDriverConfig {
+    type: 'docker';
+    socketPath?: string;
+    image?: string;
+    defaultPort?: number;
+}
+type DriverConfig = SandboxBoxDriverConfig | CloudflareDriverConfig | DockerDriverConfig;
 declare class UnsupportedOperationError extends Error {
     readonly driver: string;
     readonly operation: string;
@@ -103,7 +109,7 @@ declare class ApiRequestError extends Error {
 }
 
 interface ContainerDriver {
-    readonly type: 'sandbox-box' | 'cloudflare';
+    readonly type: 'sandbox-box' | 'cloudflare' | 'docker';
     create(name: string, config?: ContainerConfig): Promise<void>;
     start(name: string, config?: ContainerConfig): Promise<void>;
     stop(name: string, signal?: string | number): Promise<void>;
@@ -212,6 +218,47 @@ declare class CloudflareDriver implements ContainerDriver {
     }>>;
 }
 
+interface DockerDriverOptions {
+    socketPath?: string;
+    image?: string;
+    defaultPort?: number;
+}
+declare class DockerDriver implements ContainerDriver {
+    readonly type: "docker";
+    private readonly socketPath;
+    private readonly image;
+    private readonly defaultPort;
+    constructor(opts?: DockerDriverOptions);
+    private dockerRequest;
+    private decodeChunked;
+    private findContainerByName;
+    private listAllContainers;
+    private containerName;
+    create(name: string, config?: ContainerConfig): Promise<void>;
+    start(name: string, config?: ContainerConfig): Promise<void>;
+    stop(name: string, signal?: string | number): Promise<void>;
+    destroy(name: string): Promise<void>;
+    getState(name: string): Promise<ContainerState>;
+    private getContainerIP;
+    fetch(name: string, request: Request, port?: number): Promise<Response>;
+    exec(name: string, command: string): Promise<ExecResult>;
+    private parseDockerStream;
+    execStream(name: string, command: string, callbacks: ExecStreamCallbacks, options?: ExecStreamOptions): Promise<{
+        exitCode: number;
+    }>;
+    readFile(name: string, path: string): Promise<string>;
+    writeFile(name: string, path: string, content: string): Promise<void>;
+    listFiles(name: string, path: string): Promise<FileInfo[]>;
+    gitStatus(name: string): Promise<GitStatus>;
+    private extractBranch;
+    gitPush(name: string, message: string): Promise<void>;
+    getStats(name: string): Promise<ContainerStats>;
+    list(): Promise<Array<{
+        name: string;
+        state: ContainerState;
+    }>>;
+}
+
 declare function initDriver(config: DriverConfig): void;
 declare function getDriver(): ContainerDriver;
 declare function resetDriver(): void;
@@ -219,4 +266,4 @@ declare function getContainer(name: string, config?: ContainerConfig): Container
 declare function listContainers(): Promise<Container[]>;
 declare function switchPort(request: Request, port: number): Request;
 
-export { ApiRequestError, AuthenticationError, CloudflareDriver, type CloudflareDriverConfig, Container, type ContainerConfig, type ContainerDriver, ContainerNotFoundError, ContainerNotRunningError, ContainerStartError, type ContainerState, type ContainerStats, type ContainerStatus, type DriverConfig, type DriverType, type ExecResult, type ExecStreamCallbacks, type ExecStreamOptions, type FileInfo, type GitCommit, type GitStatus, SandboxBoxDriver, type SandboxBoxDriverConfig, UnsupportedOperationError, getContainer, getDriver, initDriver, listContainers, resetDriver, switchPort };
+export { ApiRequestError, AuthenticationError, CloudflareDriver, type CloudflareDriverConfig, Container, type ContainerConfig, type ContainerDriver, ContainerNotFoundError, ContainerNotRunningError, ContainerStartError, type ContainerState, type ContainerStats, type ContainerStatus, DockerDriver, type DockerDriverConfig, type DriverConfig, type DriverType, type ExecResult, type ExecStreamCallbacks, type ExecStreamOptions, type FileInfo, type GitCommit, type GitStatus, SandboxBoxDriver, type SandboxBoxDriverConfig, UnsupportedOperationError, getContainer, getDriver, initDriver, listContainers, resetDriver, switchPort };

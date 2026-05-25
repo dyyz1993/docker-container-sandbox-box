@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 const DOCKER_SOCKET = '/var/run/docker.sock';
+const TEST_IMAGE = 'node:22-bookworm-slim';
 const TEST_PREFIX = `sbx-test-${Date.now()}`;
 
 function hasDocker(): boolean {
@@ -11,7 +13,6 @@ function hasDocker(): boolean {
     return false;
   }
 }
-
 const itIfDocker = hasDocker() ? it : it.skip;
 
 describe('DockerDriver', () => {
@@ -23,9 +24,11 @@ describe('DockerDriver', () => {
     const { DockerDriver } = await import('../src/drivers/docker');
     driver = new DockerDriver({
       socketPath: DOCKER_SOCKET,
-      image: 'node:22-alpine',
+      image: TEST_IMAGE,
       defaultPort: 3000,
     });
+    // Pull the test image (idempotent if already present)
+    spawnSync('docker', ['pull', TEST_IMAGE], { stdio: 'pipe', timeout: 120_000 });
   });
 
   afterAll(async () => {

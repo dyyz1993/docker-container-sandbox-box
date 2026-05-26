@@ -850,7 +850,7 @@ Content-Length: ${buf.length}\r
     if (!container) throw new ContainerNotFoundError(name);
     if (!container.State.Running) throw new ContainerNotRunningError(name);
     return new Promise((resolve, reject) => {
-      const proc = spawn2("docker", ["exec", "-i", name, "/bin/sh", "-c", command], {
+      const proc = spawn2("docker", ["exec", name, "/bin/sh", "-c", command], {
         timeout: options?.timeout,
         cwd: options?.cwd
       });

@@ -554,6 +554,14 @@ Content-Length: ${buf.length}\r
         let contentLength = -1;
         let isChunked = false;
         let bodyStart = 0;
+        let settled = false;
+        const timeout = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            socket.destroy();
+            reject(new Error(`Docker API request timed out: ${method} ${path}`));
+          }
+        }, 3e4);
         socket.on("data", (chunk) => {
           data = Buffer.concat([data, chunk]);
           if (!headersDone) {
@@ -575,6 +583,8 @@ Content-Length: ${buf.length}\r
             if (term !== -1) {
               const bodyData = data.slice(bodyStart, term);
               const decoded = this.decodeChunked(bodyData.toString());
+              clearTimeout(timeout);
+              settled = true;
               socket.destroy();
               resolve({ status: statusCode, body: decoded });
             }
@@ -582,14 +592,24 @@ Content-Length: ${buf.length}\r
             const received = data.length - bodyStart;
             if (received >= contentLength) {
               const bodyData = data.slice(bodyStart, bodyStart + contentLength);
+              clearTimeout(timeout);
+              settled = true;
               socket.destroy();
               resolve({ status: statusCode, body: bodyData.toString() });
             }
           }
         });
-        socket.on("error", reject);
+        socket.on("error", (err) => {
+          clearTimeout(timeout);
+          if (!settled) {
+            settled = true;
+            reject(err);
+          }
+        });
         socket.on("close", () => {
-          if (!headersDone) {
+          clearTimeout(timeout);
+          if (!settled && !headersDone) {
+            settled = true;
             reject(new Error("Socket closed before response headers"));
           }
         });
@@ -620,21 +640,28 @@ Content-Length: ${buf.length}\r
     });
   }
   async listAllContainers() {
-    const { body, status } = await this.dockerRequest(
-      `/containers/json?all=true&filters=${encodeURIComponent(JSON.stringify({ label: [`${LABEL_MANAGED}=true`] }))}`
-    );
-    if (status >= 400) return [];
-    const list = JSON.parse(body);
-    const results = [];
-    for (const c of list) {
-      const { body: inspectBody, status: inspectStatus } = await this.dockerRequest(
-        `/containers/${c.Id}/json`
+    try {
+      const { body, status } = await this.dockerRequest(
+        `/containers/json?all=true&filters=${encodeURIComponent(JSON.stringify({ label: [`${LABEL_MANAGED}=true`] }))}`
       );
-      if (inspectStatus < 400) {
-        results.push(JSON.parse(inspectBody));
+      if (status >= 400) return [];
+      const list = JSON.parse(body);
+      const results = [];
+      for (const c of list) {
+        try {
+          const { body: inspectBody, status: inspectStatus } = await this.dockerRequest(
+            `/containers/${c.Id}/json`
+          );
+          if (inspectStatus < 400) {
+            results.push(JSON.parse(inspectBody));
+          }
+        } catch {
+        }
       }
+      return results;
+    } catch {
+      return [];
     }
-    return results;
   }
   containerName(name) {
     return name;

@@ -129,6 +129,15 @@ export class DockerDriver implements ContainerDriver {
         let contentLength = -1;
         let isChunked = false;
         let bodyStart = 0;
+        let settled = false;
+
+        const timeout = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            socket.destroy();
+            reject(new Error(`Docker API request timed out: ${method} ${path}`));
+          }
+        }, 30_000);
 
         socket.on('data', (chunk: Buffer) => {
           data = Buffer.concat([data, chunk]);
@@ -156,6 +165,8 @@ export class DockerDriver implements ContainerDriver {
             if (term !== -1) {
               const bodyData = data.slice(bodyStart, term);
               const decoded = this.decodeChunked(bodyData.toString());
+              clearTimeout(timeout);
+              settled = true;
               socket.destroy();
               resolve({ status: statusCode, body: decoded });
             }
@@ -163,15 +174,26 @@ export class DockerDriver implements ContainerDriver {
             const received = data.length - bodyStart;
             if (received >= contentLength) {
               const bodyData = data.slice(bodyStart, bodyStart + contentLength);
+              clearTimeout(timeout);
+              settled = true;
               socket.destroy();
               resolve({ status: statusCode, body: bodyData.toString() });
             }
           }
         });
 
-        socket.on('error', reject);
+        socket.on('error', (err) => {
+          clearTimeout(timeout);
+          if (!settled) {
+            settled = true;
+            reject(err);
+          }
+        });
+
         socket.on('close', () => {
-          if (!headersDone) {
+          clearTimeout(timeout);
+          if (!settled && !headersDone) {
+            settled = true;
             reject(new Error('Socket closed before response headers'));
           }
         });

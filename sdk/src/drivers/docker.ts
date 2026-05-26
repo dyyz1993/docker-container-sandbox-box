@@ -457,7 +457,7 @@ export class DockerDriver implements ContainerDriver {
         body: JSON.stringify({
           AttachStdout: true,
           AttachStderr: true,
-          Cmd: ['bash', '-c', command],
+          Cmd: ['sh', '-c', command],
         }),
       },
     );
@@ -537,7 +537,7 @@ export class DockerDriver implements ContainerDriver {
     if (!container.State.Running) throw new ContainerNotRunningError(name);
 
     return new Promise((resolve, reject) => {
-      const proc = spawn('docker', ['exec', name, 'bash', '-c', command], {
+      const proc = spawn('docker', ['exec', name, 'sh', '-c', command], {
         timeout: options?.timeout,
         cwd: options?.cwd,
       });
@@ -573,52 +573,48 @@ export class DockerDriver implements ContainerDriver {
   async listFiles(name: string, path: string): Promise<FileInfo[]> {
     const { stdout, exitCode } = await this.exec(
       name,
-      `ls -1 --time-style=full-iso ${path} 2>/dev/null | tail -n +1`,
+      `ls -1a ${path} 2>/dev/null`,
     );
 
-    if (exitCode !== 0) return [];
+    if (exitCode !== 0 || !stdout.trim()) return [];
 
-    const { stdout: statOutput } = await this.exec(
-      name,
-      `stat -c '%F\t%s\t%Y' ${path}/* 2>/dev/null || true`,
-    );
+    const entries = stdout.split('\n').filter((l) => l.trim() && l.trim() !== '.' && l.trim() !== '..');
 
-    const fileMap = new Map<string, { type: string; size: number; modified: number }>();
-    for (const line of statOutput.split('\n')) {
-      if (!line.trim()) continue;
-      const [fullPath, type, size, mtime] = line.split('\t');
-      const fileName = fullPath.split('/').pop() ?? '';
-      fileMap.set(fileName, {
-        type,
-        size: parseInt(size, 10) || 0,
-        modified: parseInt(mtime, 10) * 1000 || Date.now(),
+    const results: FileInfo[] = [];
+    for (const entry of entries) {
+      const fileName = entry.trim();
+      const fullPath = `${path}/${fileName}`.replace(/\/+/g, '/');
+
+      const { stdout: statOut } = await this.exec(
+        name,
+        `stat -c '%F\t%s\t%Y' "${fullPath}" 2>/dev/null`,
+      );
+
+      if (!statOut.trim()) {
+        results.push({
+          name: fileName,
+          path: fullPath,
+          type: 'file',
+          size: 0,
+          modified: new Date().toISOString(),
+        });
+        continue;
+      }
+
+      const [typeStr, sizeStr, mtimeStr] = statOut.trim().split('\t');
+      const isDir = typeStr?.includes('directory') ?? false;
+      const isLink = typeStr?.includes('link') ?? false;
+
+      results.push({
+        name: fileName,
+        path: fullPath,
+        type: isDir ? 'directory' : isLink ? 'symlink' : 'file',
+        size: parseInt(sizeStr ?? '0', 10) || 0,
+        modified: new Date((parseInt(mtimeStr ?? '0', 10) || 0) * 1000).toISOString(),
       });
     }
 
-    return stdout
-      .split('\n')
-      .filter((l) => l.trim())
-      .map((line) => {
-        const fileName = line.trim();
-        const info = fileMap.get(fileName) ?? {
-          type: 'regular file',
-          size: 0,
-          modified: Date.now(),
-        };
-        const type = info.type.includes('directory')
-          ? 'directory'
-          : info.type.includes('link')
-            ? 'symlink'
-            : 'file';
-
-        return {
-          name: fileName,
-          path: `${path}/${fileName}`.replace(/\/+/g, '/'),
-          type: type as FileInfo['type'],
-          size: info.size,
-          modified: new Date(info.modified).toISOString(),
-        };
-      });
+    return results;
   }
 
   async gitStatus(name: string): Promise<GitStatus> {

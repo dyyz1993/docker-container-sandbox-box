@@ -537,7 +537,7 @@ export class DockerDriver implements ContainerDriver {
     if (!container.State.Running) throw new ContainerNotRunningError(name);
 
     return new Promise((resolve, reject) => {
-      const proc = spawn('docker', ['exec', name, 'sh', '-c', command], {
+      const proc = spawn('docker', ['exec', '-i', name, '/bin/sh', '-c', command], {
         timeout: options?.timeout,
         cwd: options?.cwd,
       });

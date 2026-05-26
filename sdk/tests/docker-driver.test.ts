@@ -233,20 +233,21 @@ describe('DockerDriver', () => {
 
     itIfDocker('should stream stdout', async () => {
       const chunks: string[] = [];
+      const stderrChunks: string[] = [];
       const result = await driver.execStream(
         name,
         'echo line1; echo line2; echo line3',
         {
           onStdout: (data) => chunks.push(data),
-          onStderr: () => {},
+          onStderr: (data) => stderrChunks.push(data),
         },
       );
 
-      expect(result.exitCode).toBe(0);
       const all = chunks.join('');
       expect(all).toContain('line1');
       expect(all).toContain('line2');
       expect(all).toContain('line3');
+      expect(result.exitCode).toBe(0);
     });
 
     itIfDocker('should respect timeout', async () => {

@@ -891,7 +891,7 @@ Content-Length: ${buf.length}\r
     if (!container) throw new ContainerNotFoundError(name);
     if (!container.State.Running) throw new ContainerNotRunningError(name);
     return new Promise((resolve, reject) => {
-      const proc = (0, import_node_child_process2.spawn)("docker", ["exec", name, "sh", "-c", command], {
+      const proc = (0, import_node_child_process2.spawn)("docker", ["exec", "-i", name, "/bin/sh", "-c", command], {
         timeout: options?.timeout,
         cwd: options?.cwd
       });

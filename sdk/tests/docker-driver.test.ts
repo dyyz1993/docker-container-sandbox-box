@@ -29,6 +29,18 @@ function findLocalImage(): string | undefined {
   return undefined;
 }
 
+function pullImage(): string {
+  for (const img of TEST_IMAGES) {
+    try {
+      execSync(`docker pull ${img}`, { stdio: 'pipe', timeout: 180_000 });
+      return img;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error('Failed to pull any test image: ' + TEST_IMAGES.join(', '));
+}
+
 function resolveImage(): string {
   const local = findLocalImage();
   if (local) return local;

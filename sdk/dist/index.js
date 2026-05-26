@@ -577,6 +577,14 @@ Content-Length: ${buf.length}\r
             if (headerStr.match(/Transfer-Encoding:\s*chunked/i)) {
               isChunked = true;
             }
+            if (!isChunked && contentLength < 0) {
+              clearTimeout(timeout);
+              settled = true;
+              const bodyData = data.slice(bodyStart).toString();
+              socket.destroy();
+              resolve({ status: statusCode, body: bodyData });
+              return;
+            }
           }
           if (isChunked) {
             const term = data.indexOf(Buffer.from("0\r\n\r\n"));

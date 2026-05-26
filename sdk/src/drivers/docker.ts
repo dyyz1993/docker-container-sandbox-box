@@ -159,6 +159,15 @@ export class DockerDriver implements ContainerDriver {
             if (headerStr.match(/Transfer-Encoding:\s*chunked/i)) {
               isChunked = true;
             }
+
+            if (!isChunked && contentLength < 0) {
+              clearTimeout(timeout);
+              settled = true;
+              const bodyData = data.slice(bodyStart).toString();
+              socket.destroy();
+              resolve({ status: statusCode, body: bodyData });
+              return;
+            }
           }
 
           if (isChunked) {

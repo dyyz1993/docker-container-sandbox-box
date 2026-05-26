@@ -536,12 +536,11 @@ Content-Length: ${buf.length}\r
             if (headerStr.match(/Transfer-Encoding:\s*chunked/i)) {
               isChunked = true;
             }
-            if (!isChunked && contentLength < 0) {
+            if (!isChunked && contentLength < 0 && data.length === bodyStart) {
               clearTimeout(timeout);
               settled = true;
-              const bodyData = data.slice(bodyStart).toString();
               socket.destroy();
-              resolve({ status: statusCode, body: bodyData });
+              resolve({ status: statusCode, body: "" });
               return;
             }
           }
@@ -575,9 +574,14 @@ Content-Length: ${buf.length}\r
         });
         socket.on("close", () => {
           clearTimeout(timeout);
-          if (!settled && !headersDone) {
+          if (!settled) {
             settled = true;
-            reject(new Error("Socket closed before response headers"));
+            if (headersDone) {
+              const bodyData = data.slice(bodyStart).toString();
+              resolve({ status: statusCode, body: bodyData });
+            } else {
+              reject(new Error("Socket closed before response headers"));
+            }
           }
         });
       });

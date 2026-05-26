@@ -86,9 +86,10 @@ export class DockerDriver implements ContainerDriver {
       body?: string;
       headers?: Record<string, string>;
       hijack?: boolean;
+      timeout?: number;
     } = {},
   ): Promise<{ status: number; body: string; socket?: NodeJS.Socket }> {
-    const { method = 'GET', body, headers = {}, hijack = false } = options;
+    const { method = 'GET', body, headers = {}, hijack = false, timeout: reqTimeout = 60_000 } = options;
 
     return new Promise((resolve, reject) => {
       const socket = createConnection(this.socketPath, () => {
@@ -135,9 +136,9 @@ export class DockerDriver implements ContainerDriver {
           if (!settled) {
             settled = true;
             socket.destroy();
-            reject(new Error(`Docker API request timed out: ${method} ${path}`));
+            reject(new Error(`Docker API request timed out (${reqTimeout}ms): ${method} ${path}`));
           }
-        }, 30_000);
+        }, reqTimeout);
 
         socket.on('data', (chunk: Buffer) => {
           data = Buffer.concat([data, chunk]);
@@ -303,6 +304,7 @@ export class DockerDriver implements ContainerDriver {
       method: 'POST',
       body,
       headers: { 'Content-Type': 'application/json' },
+      timeout: 120_000,
     });
 
     if (status >= 400) {
@@ -337,7 +339,7 @@ export class DockerDriver implements ContainerDriver {
 
     const { status, body } = await this.dockerRequest(
       `/containers/${container.Id}/start`,
-      { method: 'POST' },
+      { method: 'POST', timeout: 120_000 },
     );
 
     if (status >= 400 && status !== 304) {

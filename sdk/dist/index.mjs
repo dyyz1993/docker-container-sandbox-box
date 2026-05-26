@@ -473,7 +473,7 @@ var DockerDriver = class {
     this.defaultPort = opts.defaultPort ?? 3e3;
   }
   async dockerRequest(path, options = {}) {
-    const { method = "GET", body, headers = {}, hijack = false } = options;
+    const { method = "GET", body, headers = {}, hijack = false, timeout: reqTimeout = 6e4 } = options;
     return new Promise((resolve, reject) => {
       const socket = createConnection(this.socketPath, () => {
         const reqHeaders = {
@@ -518,9 +518,9 @@ Content-Length: ${buf.length}\r
           if (!settled) {
             settled = true;
             socket.destroy();
-            reject(new Error(`Docker API request timed out: ${method} ${path}`));
+            reject(new Error(`Docker API request timed out (${reqTimeout}ms): ${method} ${path}`));
           }
-        }, 3e4);
+        }, reqTimeout);
         socket.on("data", (chunk) => {
           data = Buffer.concat([data, chunk]);
           if (!headersDone) {
@@ -662,7 +662,8 @@ Content-Length: ${buf.length}\r
     const { status, body: respBody } = await this.dockerRequest("/containers/create", {
       method: "POST",
       body,
-      headers: { "Content-Type": "application/json" }
+      headers: { "Content-Type": "application/json" },
+      timeout: 12e4
     });
     if (status >= 400) {
       throw new ContainerStartError(name, respBody);
@@ -689,7 +690,7 @@ Content-Length: ${buf.length}\r
     if (container.State.Running) return;
     const { status, body } = await this.dockerRequest(
       `/containers/${container.Id}/start`,
-      { method: "POST" }
+      { method: "POST", timeout: 12e4 }
     );
     if (status >= 400 && status !== 304) {
       throw new ContainerStartError(name, body);

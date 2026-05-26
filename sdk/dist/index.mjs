@@ -536,7 +536,7 @@ Content-Length: ${buf.length}\r
             if (headerStr.match(/Transfer-Encoding:\s*chunked/i)) {
               isChunked = true;
             }
-            if (!isChunked && contentLength < 0 && data.length === bodyStart) {
+            if (statusCode === 204 || statusCode === 304) {
               clearTimeout(timeout);
               settled = true;
               socket.destroy();

@@ -160,7 +160,7 @@ export class DockerDriver implements ContainerDriver {
               isChunked = true;
             }
 
-            if (!isChunked && contentLength < 0 && data.length === bodyStart) {
+            if (statusCode === 204 || statusCode === 304) {
               clearTimeout(timeout);
               settled = true;
               socket.destroy();

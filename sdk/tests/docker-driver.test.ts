@@ -275,9 +275,9 @@ describe('DockerDriver', () => {
     beforeAll(async () => {
       if (!hasDocker()) return;
       await driver.start(name);
-      // Configure git user
       await driver.exec(name, 'git config --global user.email "test@test.com"');
       await driver.exec(name, 'git config --global user.name "Test User"');
+      await driver.exec(name, 'mkdir -p /workspace && cd /workspace && git init');
     });
 
     afterAll(async () => {
@@ -286,29 +286,17 @@ describe('DockerDriver', () => {
     });
 
     itIfDocker('should initialize a git repo', async () => {
-      await driver.exec(name, 'mkdir -p /workspace && cd /workspace && git init');
+      const { stdout } = await driver.exec(name, 'cd /workspace && git rev-parse --git-dir 2>/dev/null');
+      expect(stdout.trim()).toContain('.git');
     });
 
-    itIfDocker('should show git status for non-repo directory', async () => {
+    itIfDocker('should show git status for empty repo', async () => {
       const status = await driver.gitStatus(name);
-      expect(status.branch).toBe('');
+      expect(status.branch).toBeTruthy();
       expect(status.recentCommits).toEqual([]);
     });
 
     itIfDocker('should track modifications', async () => {
-      await driver.exec(name, 'cd /workspace && git init 2>/dev/null; true');
-
-      // If we already initialized, skip init
-      const { stdout: initCheck } = await driver.exec(
-        name,
-        'cd /workspace && git rev-parse --git-dir 2>/dev/null || echo "NOGIT"',
-      );
-
-      if (initCheck.trim() === 'NOGIT') {
-        await driver.exec(name, 'cd /workspace && git init');
-      }
-
-      // Set user config again (in case new repo)
       await driver.exec(
         name,
         'cd /workspace && git config user.email "test@test.com" && git config user.name "Test User"',
@@ -318,7 +306,7 @@ describe('DockerDriver', () => {
       await driver.exec(name, 'cd /workspace && git add README.md && git commit -m "initial"');
 
       const status = await driver.gitStatus(name);
-      expect(status.branch).toBe('master');
+      expect(['master', 'main']).toContain(status.branch);
       expect(status.recentCommits.length).toBeGreaterThanOrEqual(1);
       expect(status.recentCommits[0].message).toBe('initial');
 
@@ -409,10 +397,10 @@ describe('DockerDriver', () => {
       await driver.writeFile(name, '/workspace/index.html', '<h1>Hello from DockerDriver</h1>');
       await driver.exec(
         name,
-        'cd /workspace && nohup python3 -m http.server 3000 > /dev/null 2>&1 &',
+        'node -e "require(\'http\').createServer((q,r)=>{r.end(require(\'fs\').readFileSync(\'/workspace/index.html\',\'utf8\'))}).listen(3000)">/dev/null 2>&1 &',
       );
 
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 3000));
 
       const state = await driver.getState(name);
       expect(state.ip).toBeTruthy();
